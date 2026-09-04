@@ -4,7 +4,7 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { detectarBancoEnFilasCrudas, filasCrudasAObjetos, bancosSoportados } from "@/lib/importers";
 import { esFicheroTipoCambioBDE, procesarTipoCambioBDE } from "@/lib/importers/tipoCambio";
-import { obtenerTasasOrdenadas, buscarTasaConFecha, recalcularPagosConTasaMejorable } from "@/lib/tipoCambio";
+import { obtenerTasasOrdenadas, buscarTasaConFecha, recalcularPagosConTasaMejorable, guardarTasasCambio } from "@/lib/tipoCambio";
 import Papa from "papaparse";
 import * as XLSX from "xlsx";
 
@@ -65,61 +65,8 @@ export async function POST(req: NextRequest) {
 
   if (esFicheroTipoCambioBDE(grid)) {
     const tasas = procesarTipoCambioBDE(grid);
-
-    if (tasas.length === 0) {
-      return NextResponse.json({
-        tipo: "tipoCambio",
-        totalFichero: 0,
-        nuevos: 0,
-        existentes: 0,
-        ultimaFecha: null,
-      });
-    }
-
-    const existentes = await prisma.tipoCambioDia.findMany({
-      where: { fecha: { in: tasas.map((t) => new Date(t.fecha)) } },
-      select: { fecha: true, usdPorEur: true },
-    });
-    const existentesMap = new Map(existentes.map((e) => [fechaISO(e.fecha), Number(e.usdPorEur)]));
-
-    const nuevas = tasas.filter((t) => !existentesMap.has(t.fecha));
-    const aActualizar = tasas.filter((t) => {
-      const actual = existentesMap.get(t.fecha);
-      return actual !== undefined && actual !== t.usdPorEur;
-    });
-
-    if (nuevas.length > 0) {
-      await prisma.tipoCambioDia.createMany({
-        data: nuevas.map((t) => ({
-          fecha: new Date(t.fecha),
-          usdPorEur: t.usdPorEur,
-          creadoPorId: usuarioId,
-          actualizadoPorId: usuarioId,
-        })),
-        skipDuplicates: true,
-      });
-    }
-
-    for (const t of aActualizar) {
-      await prisma.tipoCambioDia.update({
-        where: { fecha: new Date(t.fecha) },
-        data: { usdPorEur: t.usdPorEur, actualizadoPorId: usuarioId },
-      });
-    }
-
-    const ultimo = await prisma.tipoCambioDia.aggregate({ _max: { fecha: true } });
-
-    const pagosRecalculados = await recalcularPagosConTasaMejorable(usuarioId);
-
-    return NextResponse.json({
-      tipo: "tipoCambio",
-      totalFichero: tasas.length,
-      nuevos: nuevas.length,
-      actualizados: aActualizar.length,
-      existentes: tasas.length - nuevas.length - aActualizar.length,
-      ultimaFecha: ultimo._max.fecha ? fechaISO(ultimo._max.fecha) : null,
-      pagosRecalculados,
-    });
+    const resultado = await guardarTasasCambio(tasas, usuarioId);
+    return NextResponse.json({ tipo: "tipoCambio", ...resultado });
   }
 
   const deteccion = detectarBancoEnFilasCrudas(grid);

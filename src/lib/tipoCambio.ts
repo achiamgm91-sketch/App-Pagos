@@ -1,10 +1,11 @@
 import { prisma } from "@/lib/prisma";
 import { round2 } from "@/lib/format";
+import { TasaDetectada } from "./importers/tipoCambio";
 
 export type TasaOrdenada = { fecha: string; valor: number };
 export type TasaEncontrada = { valor: number; fechaTasa: string } | null;
 
-function fechaISO(d: Date) {
+export function fechaISO(d: Date) {
   return d.toISOString().slice(0, 10);
 }
 
@@ -60,4 +61,73 @@ export async function recalcularPagosConTasaMejorable(usuarioId: string): Promis
   }
 
   return actualizados;
+}
+
+export type ResultadoGuardadoTasas = {
+  totalFichero: number;
+  nuevos: number;
+  actualizados: number;
+  existentes: number;
+  ultimaFecha: string | null;
+  pagosRecalculados: number;
+};
+
+export async function guardarTasasCambio(
+  tasas: TasaDetectada[],
+  usuarioId: string
+): Promise<ResultadoGuardadoTasas> {
+  if (tasas.length === 0) {
+    const ultimo = await prisma.tipoCambioDia.aggregate({ _max: { fecha: true } });
+    return {
+      totalFichero: 0,
+      nuevos: 0,
+      actualizados: 0,
+      existentes: 0,
+      ultimaFecha: ultimo._max.fecha ? fechaISO(ultimo._max.fecha) : null,
+      pagosRecalculados: 0,
+    };
+  }
+
+  const existentes = await prisma.tipoCambioDia.findMany({
+    where: { fecha: { in: tasas.map((t) => new Date(t.fecha)) } },
+    select: { fecha: true, usdPorEur: true },
+  });
+  const existentesMap = new Map(existentes.map((e) => [fechaISO(e.fecha), Number(e.usdPorEur)]));
+
+  const nuevas = tasas.filter((t) => !existentesMap.has(t.fecha));
+  const aActualizar = tasas.filter((t) => {
+    const actual = existentesMap.get(t.fecha);
+    return actual !== undefined && actual !== t.usdPorEur;
+  });
+
+  if (nuevas.length > 0) {
+    await prisma.tipoCambioDia.createMany({
+      data: nuevas.map((t) => ({
+        fecha: new Date(t.fecha),
+        usdPorEur: t.usdPorEur,
+        creadoPorId: usuarioId,
+        actualizadoPorId: usuarioId,
+      })),
+      skipDuplicates: true,
+    });
+  }
+
+  for (const t of aActualizar) {
+    await prisma.tipoCambioDia.update({
+      where: { fecha: new Date(t.fecha) },
+      data: { usdPorEur: t.usdPorEur, actualizadoPorId: usuarioId },
+    });
+  }
+
+  const ultimo = await prisma.tipoCambioDia.aggregate({ _max: { fecha: true } });
+  const pagosRecalculados = await recalcularPagosConTasaMejorable(usuarioId);
+
+  return {
+    totalFichero: tasas.length,
+    nuevos: nuevas.length,
+    actualizados: aActualizar.length,
+    existentes: tasas.length - nuevas.length - aActualizar.length,
+    ultimaFecha: ultimo._max.fecha ? fechaISO(ultimo._max.fecha) : null,
+    pagosRecalculados,
+  };
 }
