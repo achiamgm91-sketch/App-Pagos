@@ -31,15 +31,15 @@ export function esFicheroRevolut(headers: string[]): boolean {
 }
 
 export function extraerPersona(descripcion: string, senderName: string | undefined): string {
-  if (senderName && senderName.trim()) return senderName.trim();
+  if (senderName && senderName.trim()) return senderName.trim().toUpperCase();
   const d = (descripcion || "").trim();
   let m = d.match(/^Dinero añadido por (.+)$/i);
-  if (m) return m[1].trim();
+  if (m) return m[1].trim().toUpperCase();
   m = d.match(/^De (.+)$/i);
-  if (m) return m[1].trim();
+  if (m) return m[1].trim().toUpperCase();
   m = d.match(/^Payment from (.+)$/i);
-  if (m) return m[1].trim();
-  return d;
+  if (m) return m[1].trim().toUpperCase();
+  return d.toUpperCase();
 }
 
 export function procesarRevolut(filas: FilaCruda[]): PagoDetectado[] {
