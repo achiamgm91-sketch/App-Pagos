@@ -10,8 +10,16 @@ export async function POST(req: NextRequest) {
   }
   const usuarioId = (session.user as any).id as string;
 
+  let desde: string | undefined;
   try {
-    const resultado = await sincronizarPagosRevolut(usuarioId);
+    const body = await req.json();
+    desde = body?.desde || undefined;
+  } catch {
+    // sin body, se usará el valor por defecto
+  }
+
+  try {
+    const resultado = await sincronizarPagosRevolut(usuarioId, desde);
     return NextResponse.json(resultado);
   } catch (e: any) {
     return NextResponse.json({ error: e.message || "Error al sincronizar con Revolut" }, { status: 502 });

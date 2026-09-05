@@ -29,6 +29,7 @@ type ResultadoTipoCambio = {
 type ResultadoRevolut = {
   tipo: "revolut";
   contenedor: string;
+  desdeUsado: string;
   totalRevolut: number;
   nuevos: number;
   duplicados: number;
@@ -91,9 +92,11 @@ function ListaPagosNuevos({ pagos }: { pagos: PagoResumen[] }) {
 export default function ImportarClient({
   ultimaFechaTipoCambio,
   ultimosPorBanco,
+  fechaSugeridaRevolut,
 }: {
   ultimaFechaTipoCambio: string | null;
   ultimosPorBanco: UltimoPagoBanco[];
+  fechaSugeridaRevolut: string;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [archivo, setArchivo] = useState<File | null>(null);
@@ -101,6 +104,7 @@ export default function ImportarClient({
   const [error, setError] = useState<string | null>(null);
   const [cargandoRevolut, setCargandoRevolut] = useState(false);
   const [errorRevolut, setErrorRevolut] = useState<string | null>(null);
+  const [fechaDesde, setFechaDesde] = useState(fechaSugeridaRevolut);
   const [resultado, setResultado] = useState<Resultado | null>(null);
   const [ultimaFecha, setUltimaFecha] = useState<string | null>(ultimaFechaTipoCambio);
   const [porBanco, setPorBanco] = useState(ultimosPorBanco);
@@ -166,7 +170,11 @@ export default function ImportarClient({
     setResultado(null);
 
     try {
-      const res = await fetch("/api/revolut/sincronizar", { method: "POST" });
+      const res = await fetch("/api/revolut/sincronizar", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ desde: fechaDesde }),
+      });
       const data = await res.json();
       if (!res.ok) {
         setErrorRevolut(data.error || "Error al sincronizar con Revolut");
@@ -235,14 +243,25 @@ export default function ImportarClient({
         </div>
 
         {/* Botón de sincronización manual con Revolut */}
-        <button
-          onClick={sincronizarRevolut}
-          disabled={cargandoRevolut}
-          className="w-full mb-5 py-3 bg-white border border-line rounded-lg text-[13.5px] font-semibold flex items-center justify-center gap-2 disabled:opacity-60"
-        >
-          <span>🔄</span>
-          {cargandoRevolut ? "Buscando pagos en Revolut..." : "Buscar pagos nuevos en Revolut"}
-        </button>
+        <div className="mb-1 flex items-center gap-2">
+          <button
+            onClick={sincronizarRevolut}
+            disabled={cargandoRevolut}
+            className="flex-1 py-3 bg-white border border-line rounded-lg text-[13.5px] font-semibold flex items-center justify-center gap-2 disabled:opacity-60"
+          >
+            <span>🔄</span>
+            {cargandoRevolut ? "Buscando..." : "Buscar pagos nuevos en Revolut"}
+          </button>
+          <input
+            type="date"
+            value={fechaDesde}
+            onChange={(e) => setFechaDesde(e.target.value)}
+            className="border border-line rounded-lg px-2 py-3 text-[13px] font-mono bg-white w-[132px]"
+          />
+        </div>
+        <div className="text-[11.5px] text-steel mb-4 font-mono">
+          Buscando pagos desde el {formatFecha(fechaDesde)}
+        </div>
 
         {errorRevolut && (
           <div className="mb-5 bg-alert-bg border border-[#F3C9C9] rounded-xl p-3.5 text-[13.5px] text-[#8A2E2E]">
@@ -360,6 +379,7 @@ export default function ImportarClient({
               <div className="text-[13px] text-[#0F5D45] space-y-1 font-mono">
                 <div>Contenedor: {resultado.contenedor}</div>
                 <div>Transacciones en Revolut: {resultado.totalRevolut}</div>
+                <div>Buscado desde: {formatFecha(resultado.desdeUsado)}</div>
                 <div>✓ Pagos nuevos importados: {resultado.nuevos}</div>
                 <div>· Duplicados (ya existían): {resultado.duplicados}</div>
                 {resultado.anterioresAlInicio > 0 && (

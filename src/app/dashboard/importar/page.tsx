@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { bancosSoportados } from "@/lib/importers";
+import { calcularFechaSugeridaRevolut } from "@/lib/revolut/sincronizar";
 import ImportarClient from "@/components/ImportarClient";
 
 export const dynamic = "force-dynamic";
@@ -25,5 +26,13 @@ export default async function ImportarPage() {
     })
   );
 
-  return <ImportarClient ultimaFechaTipoCambio={ultimaFechaTipoCambio} ultimosPorBanco={ultimosPorBanco} />;
+  const fechaSugeridaRevolut = await calcularFechaSugeridaRevolut();
+
+  return (
+    <ImportarClient
+      ultimaFechaTipoCambio={ultimaFechaTipoCambio}
+      ultimosPorBanco={ultimosPorBanco}
+      fechaSugeridaRevolut={fechaSugeridaRevolut}
+    />
+  );
 }

@@ -7,13 +7,39 @@ function fechaISO(d: Date) {
 }
 const round2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
 
-export async function sincronizarPagosRevolut(usuarioId: string) {
+function restarDias(fecha: string, dias: number): string {
+  const d = new Date(fecha + "T00:00:00Z");
+  d.setUTCDate(d.getUTCDate() - dias);
+  return d.toISOString().slice(0, 10);
+}
+
+const MARGEN_DIAS_POR_DEFECTO = 5;
+
+export async function calcularFechaSugeridaRevolut(): Promise<string> {
+  const contenedor = await prisma.contenedor.findFirst({ where: { estado: "ACTIVO" } });
+  const ultimoPago = await prisma.pago.findFirst({
+    where: { banco: "Revolut" },
+    orderBy: { fecha: "desc" },
+  });
+
+  const baseFecha = ultimoPago
+    ? fechaISO(ultimoPago.fecha)
+    : contenedor
+    ? fechaISO(contenedor.fechaInicio)
+    : fechaISO(new Date());
+
+  return restarDias(baseFecha, MARGEN_DIAS_POR_DEFECTO);
+}
+
+export async function sincronizarPagosRevolut(usuarioId: string, desdeParam?: string) {
   const contenedor = await prisma.contenedor.findFirst({ where: { estado: "ACTIVO" } });
   if (!contenedor) {
     throw new Error("No hay ningún contenedor activo al que asignar los pagos");
   }
 
-  const detectados = await obtenerTransaccionesRevolut();
+  const desde = desdeParam || (await calcularFechaSugeridaRevolut());
+
+  const detectados = await obtenerTransaccionesRevolut(desde);
 
   const fechaInicioContenedor = fechaISO(contenedor.fechaInicio);
   const dentroDeRango = detectados.filter((d) => d.fecha >= fechaInicioContenedor);
@@ -78,6 +104,7 @@ export async function sincronizarPagosRevolut(usuarioId: string) {
 
   return {
     contenedor: contenedor.nombre,
+    desdeUsado: desde,
     totalRevolut: detectados.length,
     nuevos: pagosNuevos.length,
     duplicados: dentroDeRango.length - nuevos.length,
