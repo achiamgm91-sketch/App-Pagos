@@ -16,6 +16,12 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
     include: {
       pagos: {
         orderBy: [{ fecha: "asc" }, { persona: "asc" }],
+        include: {
+          cobrador: true,
+          creadoPor: true,
+          actualizadoPor: true,
+          cobradorAsignadoPor: true,
+        },
       },
     },
   });
@@ -48,42 +54,66 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
   wsResumen["!cols"] = [{ wch: 24 }, { wch: 22 }, { wch: 10 }];
 
   const cabecera = [
+    "ID",
+    "Contenedor",
     "Fecha",
     "Persona",
     "Banco",
+    "Cobrador asignado",
     "Importe EUR",
     "Importe USD",
     "Tasa de cambio",
     "Fecha de la tasa",
     "Moneda original",
+    "ID origen",
+    "Creado por",
+    "Creado en",
+    "Actualizado por",
+    "Actualizado en",
+    "Cobrador asignado por",
+    "Cobrador asignado en",
   ];
+
+  const nombreUsuario = (u: { nombre: string | null; usuario: string } | null) =>
+    u ? u.nombre || u.usuario : "";
 
   const filas = contenedor.pagos.map((p) => {
     return [
+      p.id,
+      contenedor.nombre,
       p.fecha.toLocaleDateString("es-ES"),
       p.persona,
       p.banco,
+      p.cobrador?.nombre ?? "Sin asignar",
       p.importeEur !== null ? Number(p.importeEur) : "",
       p.importeUsd !== null ? Number(p.importeUsd) : "",
       p.tasaCambio !== null ? Number(p.tasaCambio) : "",
       p.fechaTasaCambio ? p.fechaTasaCambio.toLocaleDateString("es-ES") : "",
       p.monedaOriginal,
+      p.idOrigen ?? "",
+      nombreUsuario(p.creadoPor),
+      p.creadoEn.toLocaleString("es-ES"),
+      nombreUsuario(p.actualizadoPor),
+      p.actualizadoEn.toLocaleString("es-ES"),
+      p.cobradorAsignadoPor ? nombreUsuario(p.cobradorAsignadoPor) : "—",
+      p.cobradorAsignadoEn ? p.cobradorAsignadoEn.toLocaleString("es-ES") : "—",
     ];
   });
 
   const wsPagos = XLSX.utils.aoa_to_sheet([
     cabecera,
     ...filas,
-    ["", "SALDO INICIAL (no es un pago de cliente)", "", "", saldoInicial, "", "", ""],
-    ["", "TOTAL RECIBIDO", "", "", recibido, "", "", ""],
+    ["", "", "", "SALDO INICIAL (no es un pago de cliente)", "", "", "", saldoInicial, "", "", "", "", "", "", "", "", "", ""],
+    ["", "", "", "TOTAL RECIBIDO", "", "", "", recibido, "", "", "", "", "", "", "", "", "", ""],
   ]);
   wsPagos["!cols"] = [
-    { wch: 11 }, { wch: 28 }, { wch: 10 }, { wch: 12 }, { wch: 12 },
-    { wch: 12 }, { wch: 14 }, { wch: 14 },
+    { wch: 26 }, { wch: 22 }, { wch: 11 }, { wch: 28 }, { wch: 10 }, { wch: 18 },
+    { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 14 }, { wch: 14 }, { wch: 24 },
+    { wch: 16 }, { wch: 18 }, { wch: 16 }, { wch: 18 }, { wch: 18 }, { wch: 18 },
   ];
 
   for (let fila = 1; fila <= filas.length; fila++) {
-    const direccion = XLSX.utils.encode_cell({ r: fila, c: 5 });
+    const direccion = XLSX.utils.encode_cell({ r: fila, c: 8 });
     if (wsPagos[direccion] && typeof wsPagos[direccion].v === "number") {
       wsPagos[direccion].z = "0.0000";
     }
