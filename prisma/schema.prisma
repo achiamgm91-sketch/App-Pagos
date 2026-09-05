@@ -90,6 +90,14 @@ model TipoCambioDia {
   actualizadoPor  Usuario? @relation("TipoCambioActualizadoPor", fields: [actualizadoPorId], references: [id])
 }
 
+model RevolutToken {
+  id            String   @id @default(dbgenerated("gen_random_uuid()::text"))
+  accessToken   String
+  refreshToken  String
+  expiresAt     DateTime
+  actualizadoEn DateTime @default(now())
+}
+
 model Pago {
   id           String      @id @default(cuid())
   contenedorId String?
