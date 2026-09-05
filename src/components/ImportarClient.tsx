@@ -4,6 +4,8 @@ import { useRef, useState } from "react";
 import Link from "next/link";
 import { formatUsd, formatEur } from "@/lib/format";
 
+type PagoResumen = { persona: string; fecha: string; importeEur: number | null; importeUsd: number | null };
+
 type ResultadoPagos = {
   tipo: "pagos";
   banco: string;
@@ -13,7 +15,7 @@ type ResultadoPagos = {
   duplicados: number;
   anterioresAlInicio: number;
   sinTasa: number;
-  pagosNuevos: { persona: string; fecha: string; importeEur: number | null; importeUsd: number | null }[];
+  pagosNuevos: PagoResumen[];
 };
 
 type ResultadoTipoCambio = {
@@ -24,7 +26,18 @@ type ResultadoTipoCambio = {
   ultimaFecha: string | null;
 };
 
-type Resultado = ResultadoPagos | ResultadoTipoCambio;
+type ResultadoRevolut = {
+  tipo: "revolut";
+  contenedor: string;
+  totalRevolut: number;
+  nuevos: number;
+  duplicados: number;
+  anterioresAlInicio: number;
+  sinTasa: number;
+  pagosNuevos: PagoResumen[];
+};
+
+type Resultado = ResultadoPagos | ResultadoTipoCambio | ResultadoRevolut;
 
 type UltimoPagoBanco = {
   banco: string;
@@ -48,6 +61,33 @@ function formatImporteBanco(b: UltimoPagoBanco) {
   return null;
 }
 
+function ListaPagosNuevos({ pagos }: { pagos: PagoResumen[] }) {
+  return (
+    <>
+      <div className="font-mono text-[11.5px] uppercase tracking-wide text-steel mb-2">
+        Pagos nuevos importados
+      </div>
+      <div className="bg-white border border-line rounded-xl px-4">
+        {pagos.map((p, i) => (
+          <div key={i} className="flex justify-between items-center py-3 border-b border-line last:border-0 gap-2">
+            <div>
+              <div className="font-semibold text-[13.5px]">{p.persona}</div>
+              <div className="font-mono text-xs text-steel mt-0.5">{p.fecha}</div>
+            </div>
+            <div className="font-mono font-semibold text-right whitespace-nowrap">
+              {p.importeUsd !== null
+                ? formatUsd(p.importeUsd)
+                : p.importeEur !== null
+                ? formatEur(p.importeEur) + " (sin tasa)"
+                : "—"}
+            </div>
+          </div>
+        ))}
+      </div>
+    </>
+  );
+}
+
 export default function ImportarClient({
   ultimaFechaTipoCambio,
   ultimosPorBanco,
@@ -59,9 +99,29 @@ export default function ImportarClient({
   const [archivo, setArchivo] = useState<File | null>(null);
   const [cargando, setCargando] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [cargandoRevolut, setCargandoRevolut] = useState(false);
+  const [errorRevolut, setErrorRevolut] = useState<string | null>(null);
   const [resultado, setResultado] = useState<Resultado | null>(null);
   const [ultimaFecha, setUltimaFecha] = useState<string | null>(ultimaFechaTipoCambio);
   const [porBanco, setPorBanco] = useState(ultimosPorBanco);
+
+  function actualizarUltimoPorBanco(banco: string, pagosNuevos: PagoResumen[]) {
+    if (!pagosNuevos || pagosNuevos.length === 0) return;
+    const masReciente = pagosNuevos.reduce((max, p) => (p.fecha > max.fecha ? p : max), pagosNuevos[0]);
+    setPorBanco((prev) =>
+      prev.map((b) =>
+        b.banco === banco && (!b.ultimaFecha || masReciente.fecha > b.ultimaFecha)
+          ? {
+              ...b,
+              ultimaFecha: masReciente.fecha,
+              persona: masReciente.persona,
+              importeUsd: masReciente.importeUsd,
+              importeEur: masReciente.importeEur,
+            }
+          : b
+      )
+    );
+  }
 
   function elegirArchivo(f: File | null) {
     setResultado(null);
@@ -90,30 +150,36 @@ export default function ImportarClient({
           setUltimaFecha(data.ultimaFecha);
         }
         if (data.tipo === "pagos" && data.pagosNuevos?.length > 0) {
-          const masReciente = data.pagosNuevos.reduce(
-            (max: { fecha: string; persona: string; importeUsd: number | null; importeEur: number | null }, p: any) =>
-              p.fecha > max.fecha ? p : max,
-            data.pagosNuevos[0]
-          );
-          setPorBanco((prev) =>
-            prev.map((b) =>
-              b.banco === data.banco && (!b.ultimaFecha || masReciente.fecha > b.ultimaFecha)
-                ? {
-                    ...b,
-                    ultimaFecha: masReciente.fecha,
-                    persona: masReciente.persona,
-                    importeUsd: masReciente.importeUsd,
-                    importeEur: masReciente.importeEur,
-                  }
-                : b
-            )
-          );
+          actualizarUltimoPorBanco(data.banco, data.pagosNuevos);
         }
       }
     } catch (e) {
       setError("No se ha podido conectar con el servidor. Inténtalo de nuevo.");
     } finally {
       setCargando(false);
+    }
+  }
+
+  async function sincronizarRevolut() {
+    setCargandoRevolut(true);
+    setErrorRevolut(null);
+    setResultado(null);
+
+    try {
+      const res = await fetch("/api/revolut/sincronizar", { method: "POST" });
+      const data = await res.json();
+      if (!res.ok) {
+        setErrorRevolut(data.error || "Error al sincronizar con Revolut");
+      } else {
+        setResultado({ tipo: "revolut", ...data });
+        if (data.pagosNuevos?.length > 0) {
+          actualizarUltimoPorBanco("Revolut", data.pagosNuevos);
+        }
+      }
+    } catch (e) {
+      setErrorRevolut("No se ha podido conectar con el servidor. Inténtalo de nuevo.");
+    } finally {
+      setCargandoRevolut(false);
     }
   }
 
@@ -146,7 +212,7 @@ export default function ImportarClient({
         </div>
 
         {/* Estado del último pago importado de cada banco */}
-        <div className="rounded-xl p-3.5 mb-5 bg-white border border-line text-[13px]">
+        <div className="rounded-xl p-3.5 mb-3 bg-white border border-line text-[13px]">
           <div className="font-mono text-[10.5px] uppercase text-steel mb-2">Últimos pagos importados</div>
           <div className="space-y-2.5">
             {porBanco.map((b) => (
@@ -167,6 +233,22 @@ export default function ImportarClient({
             ))}
           </div>
         </div>
+
+        {/* Botón de sincronización manual con Revolut */}
+        <button
+          onClick={sincronizarRevolut}
+          disabled={cargandoRevolut}
+          className="w-full mb-5 py-3 bg-white border border-line rounded-lg text-[13.5px] font-semibold flex items-center justify-center gap-2 disabled:opacity-60"
+        >
+          <span>🔄</span>
+          {cargandoRevolut ? "Buscando pagos en Revolut..." : "Buscar pagos nuevos en Revolut"}
+        </button>
+
+        {errorRevolut && (
+          <div className="mb-5 bg-alert-bg border border-[#F3C9C9] rounded-xl p-3.5 text-[13.5px] text-[#8A2E2E]">
+            {errorRevolut}
+          </div>
+        )}
 
         {/* Zona de selección de fichero */}
         <div
@@ -258,30 +340,36 @@ export default function ImportarClient({
               </div>
             </div>
 
-            {resultado.pagosNuevos.length > 0 && (
-              <>
-                <div className="font-mono text-[11.5px] uppercase tracking-wide text-steel mb-2">
-                  Pagos nuevos importados
-                </div>
-                <div className="bg-white border border-line rounded-xl px-4">
-                  {resultado.pagosNuevos.map((p, i) => (
-                    <div key={i} className="flex justify-between items-center py-3 border-b border-line last:border-0 gap-2">
-                      <div>
-                        <div className="font-semibold text-[13.5px]">{p.persona}</div>
-                        <div className="font-mono text-xs text-steel mt-0.5">{p.fecha}</div>
-                      </div>
-                      <div className="font-mono font-semibold text-right whitespace-nowrap">
-                        {p.importeUsd !== null
-                          ? formatUsd(p.importeUsd)
-                          : p.importeEur !== null
-                          ? formatEur(p.importeEur) + " (sin tasa)"
-                          : "—"}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </>
-            )}
+            {resultado.pagosNuevos.length > 0 && <ListaPagosNuevos pagos={resultado.pagosNuevos} />}
+
+            <Link
+              href="/dashboard"
+              className="block text-center mt-5 py-3 bg-navy-950 text-white font-semibold text-[13.5px] rounded-lg"
+            >
+              Ir al Inicio y asignar cobradores
+            </Link>
+          </div>
+        )}
+
+        {resultado && resultado.tipo === "revolut" && (
+          <div className="mt-5">
+            <div className="bg-teal-bg border border-[#CDE9DF] rounded-xl p-4 mb-4">
+              <div className="font-display font-semibold text-[15px] text-[#0F5D45] mb-2">
+                Sincronización con Revolut completada
+              </div>
+              <div className="text-[13px] text-[#0F5D45] space-y-1 font-mono">
+                <div>Contenedor: {resultado.contenedor}</div>
+                <div>Transacciones en Revolut: {resultado.totalRevolut}</div>
+                <div>✓ Pagos nuevos importados: {resultado.nuevos}</div>
+                <div>· Duplicados (ya existían): {resultado.duplicados}</div>
+                {resultado.anterioresAlInicio > 0 && (
+                  <div>· Descartados por ser anteriores al inicio del contenedor: {resultado.anterioresAlInicio}</div>
+                )}
+                {resultado.sinTasa > 0 && <div>⚠ Sin tipo de cambio ese día: {resultado.sinTasa}</div>}
+              </div>
+            </div>
+
+            {resultado.pagosNuevos.length > 0 && <ListaPagosNuevos pagos={resultado.pagosNuevos} />}
 
             <Link
               href="/dashboard"

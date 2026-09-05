@@ -69,6 +69,13 @@ export async function sincronizarPagosRevolut(usuarioId: string) {
     await prisma.pago.createMany({ data: pagosNuevos, skipDuplicates: true });
   }
 
+  const pagosNuevosResumen = pagosNuevos.map((p) => ({
+    persona: p.persona,
+    fecha: fechaISO(p.fecha),
+    importeEur: p.importeEur,
+    importeUsd: p.importeUsd,
+  }));
+
   return {
     contenedor: contenedor.nombre,
     totalRevolut: detectados.length,
@@ -76,5 +83,6 @@ export async function sincronizarPagosRevolut(usuarioId: string) {
     duplicados: dentroDeRango.length - nuevos.length,
     anterioresAlInicio,
     sinTasa,
+    pagosNuevos: pagosNuevosResumen,
   };
 }
