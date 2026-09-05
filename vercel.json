@@ -1,5 +1,6 @@
 {
   "crons": [
-    { "path": "/api/cron/tipo-cambio", "schedule": "0 6 * * *" }
+    { "path": "/api/cron/tipo-cambio", "schedule": "0 6 * * *" },
+    { "path": "/api/cron/revolut", "schedule": "0 4 * * *" }
   ]
 }

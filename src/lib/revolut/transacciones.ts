@@ -1,5 +1,6 @@
 import { obtenerAccessTokenRevolut } from "./tokens";
 import type { PagoDetectado } from "@/lib/importers/revolut";
+import { extraerPersona } from "@/lib/importers/revolut";
 
 const REVOLUT_BASE_URL = "https://b2b.revolut.com/api/1.0";
 
@@ -28,12 +29,6 @@ type TransaccionRevolut = {
 
 const TIPOS_RELEVANTES = new Set(["topup", "transfer"]);
 
-function extraerPersona(leg: LegRevolut, reference?: string): string {
-  if (leg.description && leg.description.trim()) return leg.description.trim();
-  if (reference && reference.trim()) return reference.trim();
-  return "Desconocido";
-}
-
 export async function obtenerTransaccionesRevolut(desde?: string, hasta?: string): Promise<PagoDetectado[]> {
   const accessToken = await obtenerAccessTokenRevolut();
 
@@ -60,7 +55,7 @@ export async function obtenerTransaccionesRevolut(desde?: string, hasta?: string
     for (const leg of t.legs || []) {
       if (!leg.amount || leg.amount <= 0) continue;
 
-      const persona = extraerPersona(leg, t.reference);
+      const persona = extraerPersona(leg.description || t.reference || "", undefined);
       if (persona.toUpperCase().includes("BOOMERANG")) continue;
 
       const fechaRaw = (t.completed_at || t.created_at || "").slice(0, 10);

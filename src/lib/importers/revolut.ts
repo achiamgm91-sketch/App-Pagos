@@ -30,12 +30,14 @@ export function esFicheroRevolut(headers: string[]): boolean {
   return COLUMNAS_REVOLUT.every((c) => set.has(c));
 }
 
-function extraerPersona(descripcion: string, senderName: string | undefined): string {
+export function extraerPersona(descripcion: string, senderName: string | undefined): string {
   if (senderName && senderName.trim()) return senderName.trim();
   const d = (descripcion || "").trim();
   let m = d.match(/^Dinero añadido por (.+)$/i);
   if (m) return m[1].trim();
   m = d.match(/^De (.+)$/i);
+  if (m) return m[1].trim();
+  m = d.match(/^Payment from (.+)$/i);
   if (m) return m[1].trim();
   return d;
 }
