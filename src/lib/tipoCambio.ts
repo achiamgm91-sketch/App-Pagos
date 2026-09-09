@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { round2 } from "@/lib/format";
 import { TasaDetectada } from "./importers/tipoCambio";
+import { descargarTasasBCE } from "./importers/tipoCambioBCE";
 
 export type TasaOrdenada = { fecha: string; valor: number };
 export type TasaEncontrada = { valor: number; fechaTasa: string } | null;
@@ -130,4 +131,75 @@ export async function guardarTasasCambio(
     ultimaFecha: ultimo._max.fecha ? fechaISO(ultimo._max.fecha) : null,
     pagosRecalculados,
   };
+}
+
+const USUARIO_CRON = "cron@boomerang";
+const FECHA_MINIMA_FALLBACK = "2026-01-01";
+
+export type ResultadoEjecucionBCE = {
+  exitoso: boolean;
+  origen: "CRON" | "MANUAL";
+  ejecutadoEn: string;
+  mensajeError?: string;
+  fechaDesde?: string;
+  totalFichero?: number;
+  nuevos?: number;
+  actualizados?: number;
+  existentes?: number;
+  ultimaFecha?: string | null;
+  pagosRecalculados?: number;
+};
+
+export async function ejecutarSincronizacionBCE(
+  origen: "CRON" | "MANUAL",
+  usuarioQueDisparaId: string | null
+): Promise<ResultadoEjecucionBCE> {
+  const usuarioCron = await prisma.usuario.findUnique({ where: { usuario: USUARIO_CRON } });
+
+  if (!usuarioCron) {
+    const mensajeError = `Usuario de sistema '${USUARIO_CRON}' no encontrado en la base de datos`;
+    await prisma.cronEjecucion.create({
+      data: { origen, exitoso: false, mensajeError, usuarioId: usuarioQueDisparaId },
+    });
+    return { exitoso: false, origen, ejecutadoEn: new Date().toISOString(), mensajeError };
+  }
+
+  const ultimo = await prisma.tipoCambioDia.aggregate({ _max: { fecha: true } });
+  const fechaDesde = ultimo._max.fecha
+    ? fechaISO(ultimo._max.fecha)
+    : FECHA_MINIMA_FALLBACK;
+
+  try {
+    const tasas = await descargarTasasBCE(fechaDesde);
+    const resultado = await guardarTasasCambio(tasas, usuarioCron.id);
+
+    await prisma.cronEjecucion.create({
+      data: {
+        origen,
+        exitoso: true,
+        fechaDesde: new Date(fechaDesde),
+        totalFichero: resultado.totalFichero,
+        nuevos: resultado.nuevos,
+        actualizados: resultado.actualizados,
+        existentes: resultado.existentes,
+        ultimaFecha: resultado.ultimaFecha ? new Date(resultado.ultimaFecha) : null,
+        pagosRecalculados: resultado.pagosRecalculados,
+        usuarioId: usuarioQueDisparaId,
+      },
+    });
+
+    return {
+      exitoso: true,
+      origen,
+      ejecutadoEn: new Date().toISOString(),
+      fechaDesde,
+      ...resultado,
+    };
+  } catch (e: any) {
+    const mensajeError = `Fallo al descargar/guardar tasas del BCE: ${e.message}`;
+    await prisma.cronEjecucion.create({
+      data: { origen, exitoso: false, mensajeError, fechaDesde: new Date(fechaDesde), usuarioId: usuarioQueDisparaId },
+    });
+    return { exitoso: false, origen, ejecutadoEn: new Date().toISOString(), mensajeError, fechaDesde };
+  }
 }

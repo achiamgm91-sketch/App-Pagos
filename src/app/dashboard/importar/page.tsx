@@ -5,6 +5,21 @@ import ImportarClient from "@/components/ImportarClient";
 
 export const dynamic = "force-dynamic";
 
+function serializarEjecucion(e: any) {
+  if (!e) return null;
+  return {
+    origen: e.origen as "CRON" | "MANUAL",
+    ejecutadoEn: e.ejecutadoEn.toISOString(),
+    exitoso: e.exitoso,
+    mensajeError: e.mensajeError,
+    nuevos: e.nuevos,
+    actualizados: e.actualizados,
+    existentes: e.existentes,
+    ultimaFecha: e.ultimaFecha ? e.ultimaFecha.toISOString().slice(0, 10) : null,
+    usuarioNombre: e.usuario?.nombre ?? e.usuario?.usuario ?? null,
+  };
+}
+
 export default async function ImportarPage() {
   const ultimo = await prisma.tipoCambioDia.aggregate({ _max: { fecha: true } });
   const ultimaFechaTipoCambio = ultimo._max.fecha ? ultimo._max.fecha.toISOString().slice(0, 10) : null;
@@ -28,11 +43,23 @@ export default async function ImportarPage() {
 
   const fechaSugeridaRevolut = await calcularFechaSugeridaRevolut();
 
+  const ultimaEjecucionCronRaw = await prisma.cronEjecucion.findFirst({
+    where: { origen: "CRON" },
+    orderBy: { ejecutadoEn: "desc" },
+  });
+  const ultimaEjecucionManualRaw = await prisma.cronEjecucion.findFirst({
+    where: { origen: "MANUAL" },
+    orderBy: { ejecutadoEn: "desc" },
+    include: { usuario: { select: { nombre: true, usuario: true } } },
+  });
+
   return (
     <ImportarClient
       ultimaFechaTipoCambio={ultimaFechaTipoCambio}
       ultimosPorBanco={ultimosPorBanco}
       fechaSugeridaRevolut={fechaSugeridaRevolut}
+      ultimaEjecucionCron={serializarEjecucion(ultimaEjecucionCronRaw)}
+      ultimaEjecucionManual={serializarEjecucion(ultimaEjecucionManualRaw)}
     />
   );
 }

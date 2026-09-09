@@ -21,6 +21,11 @@ enum EstadoContenedor {
   FACTURADO
 }
 
+enum OrigenEjecucion {
+  CRON
+  MANUAL
+}
+
 model Usuario {
   id           String   @id @default(cuid())
   usuario      String   @unique
@@ -41,6 +46,7 @@ model Usuario {
   pagosCobradorAsignados Pago[]         @relation("PagoCobradorAsignadoPor")
   tiposCambioCreados      TipoCambioDia[] @relation("TipoCambioCreadoPor")
   tiposCambioActualizados TipoCambioDia[] @relation("TipoCambioActualizadoPor")
+  cronEjecuciones CronEjecucion[] @relation("CronEjecucionUsuario")
 }
 
 model Cobrador {
@@ -88,6 +94,27 @@ model TipoCambioDia {
   actualizadoEn   DateTime @default(now()) @updatedAt
   actualizadoPorId String?
   actualizadoPor  Usuario? @relation("TipoCambioActualizadoPor", fields: [actualizadoPorId], references: [id])
+}
+
+model CronEjecucion {
+  id          String          @id @default(dbgenerated("gen_random_uuid()::text"))
+  tipo        String          @default("tipoCambioBCE")
+  origen      OrigenEjecucion
+  ejecutadoEn DateTime        @default(now())
+  exitoso     Boolean
+  mensajeError String?
+  fechaDesde  DateTime?       @db.Date
+  totalFichero Int?
+  nuevos      Int?
+  actualizados Int?
+  existentes  Int?
+  ultimaFecha DateTime?       @db.Date
+  pagosRecalculados Int?
+
+  usuarioId String?
+  usuario   Usuario? @relation("CronEjecucionUsuario", fields: [usuarioId], references: [id])
+
+  @@index([origen, ejecutadoEn])
 }
 
 model RevolutToken {

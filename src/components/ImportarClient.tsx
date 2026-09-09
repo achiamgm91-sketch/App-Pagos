@@ -48,8 +48,24 @@ type UltimoPagoBanco = {
   importeEur: number | null;
 };
 
+type EjecucionBCE = {
+  origen: "CRON" | "MANUAL";
+  ejecutadoEn: string;
+  exitoso: boolean;
+  mensajeError?: string | null;
+  nuevos?: number | null;
+  actualizados?: number | null;
+  existentes?: number | null;
+  ultimaFecha?: string | null;
+  usuarioNombre?: string | null;
+};
+
 function formatFecha(iso: string) {
   return new Date(iso).toLocaleDateString("es-ES");
+}
+
+function formatFechaHora(iso: string) {
+  return new Date(iso).toLocaleString("es-ES", { dateStyle: "short", timeStyle: "short" });
 }
 
 function formatImporteBanco(b: UltimoPagoBanco) {
@@ -89,14 +105,61 @@ function ListaPagosNuevos({ pagos }: { pagos: PagoResumen[] }) {
   );
 }
 
+function TarjetaEjecucionBCE({ titulo, ejecucion }: { titulo: string; ejecucion: EjecucionBCE | null }) {
+  if (!ejecucion) {
+    return (
+      <div className="bg-white border border-line rounded-xl p-3.5 text-[13px]">
+        <div className="font-mono text-[10.5px] uppercase text-steel mb-1.5">{titulo}</div>
+        <div className="text-steel">Todavía no se ha ejecutado ninguna vez</div>
+      </div>
+    );
+  }
+
+  return (
+    <div
+      className={`rounded-xl p-3.5 text-[13px] border ${
+        ejecucion.exitoso ? "bg-white border-line" : "bg-alert-bg border-[#F3C9C9]"
+      }`}
+    >
+      <div className="font-mono text-[10.5px] uppercase text-steel mb-1.5">{titulo}</div>
+      <div className="flex justify-between items-start gap-2">
+        <div>
+          <div className={ejecucion.exitoso ? "" : "text-[#8A2E2E] font-semibold"}>
+            {ejecucion.exitoso ? "✓ Completada correctamente" : "✗ Falló"}
+          </div>
+          {!ejecucion.exitoso && ejecucion.mensajeError && (
+            <div className="text-[12px] text-[#8A2E2E] mt-1">{ejecucion.mensajeError}</div>
+          )}
+          {ejecucion.exitoso && (
+            <div className="text-[12px] text-steel mt-1 font-mono">
+              {ejecucion.nuevos ?? 0} nuevas · {ejecucion.actualizados ?? 0} actualizadas
+              {ejecucion.ultimaFecha && <> · hasta {formatFecha(ejecucion.ultimaFecha)}</>}
+            </div>
+          )}
+          {ejecucion.usuarioNombre && (
+            <div className="text-[11.5px] text-steel mt-1">por {ejecucion.usuarioNombre}</div>
+          )}
+        </div>
+        <div className="font-mono text-[11.5px] text-steel whitespace-nowrap">
+          {formatFechaHora(ejecucion.ejecutadoEn)}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function ImportarClient({
   ultimaFechaTipoCambio,
   ultimosPorBanco,
   fechaSugeridaRevolut,
+  ultimaEjecucionCron,
+  ultimaEjecucionManual,
 }: {
   ultimaFechaTipoCambio: string | null;
   ultimosPorBanco: UltimoPagoBanco[];
   fechaSugeridaRevolut: string;
+  ultimaEjecucionCron: EjecucionBCE | null;
+  ultimaEjecucionManual: EjecucionBCE | null;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [archivo, setArchivo] = useState<File | null>(null);
@@ -108,6 +171,9 @@ export default function ImportarClient({
   const [resultado, setResultado] = useState<Resultado | null>(null);
   const [ultimaFecha, setUltimaFecha] = useState<string | null>(ultimaFechaTipoCambio);
   const [porBanco, setPorBanco] = useState(ultimosPorBanco);
+  const [cargandoBCE, setCargandoBCE] = useState(false);
+  const [ejecucionCron, setEjecucionCron] = useState(ultimaEjecucionCron);
+  const [ejecucionManual, setEjecucionManual] = useState(ultimaEjecucionManual);
 
   function actualizarUltimoPorBanco(banco: string, pagosNuevos: PagoResumen[]) {
     if (!pagosNuevos || pagosNuevos.length === 0) return;
@@ -191,6 +257,38 @@ export default function ImportarClient({
     }
   }
 
+  async function sincronizarBCE() {
+    setCargandoBCE(true);
+    try {
+      const res = await fetch("/api/tipo-cambio/sincronizar", { method: "POST" });
+      const data = await res.json();
+      setEjecucionManual({
+        origen: "MANUAL",
+        ejecutadoEn: data.ejecutadoEn,
+        exitoso: data.exitoso,
+        mensajeError: data.mensajeError,
+        nuevos: data.nuevos,
+        actualizados: data.actualizados,
+        existentes: data.existentes,
+        ultimaFecha: data.ultimaFecha,
+        usuarioNombre: "ti",
+      });
+      if (data.exitoso && data.ultimaFecha) {
+        setUltimaFecha(data.ultimaFecha);
+      }
+    } catch (e) {
+      setEjecucionManual({
+        origen: "MANUAL",
+        ejecutadoEn: new Date().toISOString(),
+        exitoso: false,
+        mensajeError: "No se ha podido conectar con el servidor",
+        usuarioNombre: "ti",
+      });
+    } finally {
+      setCargandoBCE(false);
+    }
+  }
+
   return (
     <div className="min-h-screen">
       <div className="bg-navy-950 text-white px-4.5 py-4 flex items-center justify-between sticky top-0 z-20">
@@ -218,6 +316,21 @@ export default function ImportarClient({
             "Todavía no hay ningún tipo de cambio cargado en el sistema"
           )}
         </div>
+
+        {/* Estado de las sincronizaciones automáticas/manuales con el BCE */}
+        <div className="space-y-2 mb-3">
+          <TarjetaEjecucionBCE titulo="Última descarga automática (BCE)" ejecucion={ejecucionCron} />
+          <TarjetaEjecucionBCE titulo="Última actualización manual (BCE)" ejecucion={ejecucionManual} />
+        </div>
+
+        <button
+          onClick={sincronizarBCE}
+          disabled={cargandoBCE}
+          className="w-full mb-4 py-3 bg-white border border-line rounded-lg text-[13.5px] font-semibold flex items-center justify-center gap-2 disabled:opacity-60"
+        >
+          <span>🔄</span>
+          {cargandoBCE ? "Actualizando..." : "Actualizar tasas del BCE ahora"}
+        </button>
 
         {/* Estado del último pago importado de cada banco */}
         <div className="rounded-xl p-3.5 mb-3 bg-white border border-line text-[13px]">
