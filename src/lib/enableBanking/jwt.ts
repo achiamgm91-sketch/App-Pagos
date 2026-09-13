@@ -5,6 +5,15 @@ function base64url(input: Buffer | string): string {
   return buf.toString("base64").replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 }
 
+function normalizarClavePrivada(valor: string): string {
+  const conNewlinesReales = valor.replace(/\\n/g, "\n").trim();
+  if (conNewlinesReales.includes("-----BEGIN")) {
+    return conNewlinesReales;
+  }
+  // No parece PEM en claro: asumimos que está codificada en base64.
+  return Buffer.from(valor.trim(), "base64").toString("utf-8");
+}
+
 export function generarJwtEnableBanking(): string {
   const applicationId = process.env.ENABLE_BANKING_APPLICATION_ID;
   const privateKey = process.env.ENABLE_BANKING_PRIVATE_KEY;
@@ -24,7 +33,7 @@ export function generarJwtEnableBanking(): string {
   const signer = crypto.createSign("RSA-SHA256");
   signer.update(unsigned);
   signer.end();
-  const signature = signer.sign(privateKey.replace(/\\n/g, "\n"));
+  const signature = signer.sign(normalizarClavePrivada(privateKey));
 
   return `${unsigned}.${base64url(signature)}`;
 }
