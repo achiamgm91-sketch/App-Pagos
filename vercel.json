@@ -2,6 +2,6 @@
   "crons": [
     { "path": "/api/cron/tipo-cambio", "schedule": "0 6 * * *" },
     { "path": "/api/cron/revolut", "schedule": "0 4 * * *" },
-    { "path": "/api/cron/sabadell", "schedule": "0 4 * * *" }
+    { "path": "/api/cron/sabadell", "schedule": "0 12 * * *" }
   ]
 }
