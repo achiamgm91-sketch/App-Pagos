@@ -125,6 +125,14 @@ model RevolutToken {
   actualizadoEn DateTime @default(now())
 }
 
+model SabadellSesion {
+  id            String   @id @default(dbgenerated("gen_random_uuid()::text"))
+  sessionId     String
+  accountUid    String
+  validaHasta   DateTime
+  actualizadoEn DateTime @default(now())
+}
+
 model Pago {
   id           String      @id @default(cuid())
   contenedorId String?

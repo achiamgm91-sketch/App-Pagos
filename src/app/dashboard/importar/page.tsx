@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { bancosSoportados } from "@/lib/importers";
 import { calcularFechaSugeridaRevolut } from "@/lib/revolut/sincronizar";
+import { calcularFechaSugeridaSabadell } from "@/lib/enableBanking/sincronizar";
 import ImportarClient from "@/components/ImportarClient";
 
 export const dynamic = "force-dynamic";
@@ -42,6 +43,9 @@ export default async function ImportarPage() {
   );
 
   const fechaSugeridaRevolut = await calcularFechaSugeridaRevolut();
+  const fechaSugeridaSabadell = await calcularFechaSugeridaSabadell();
+  const sesionSabadell = await prisma.sabadellSesion.findFirst();
+  const sabadellConectado = !!sesionSabadell && sesionSabadell.validaHasta.getTime() > Date.now();
 
   const ultimaEjecucionCronRaw = await prisma.cronEjecucion.findFirst({
     where: { origen: "CRON" },
@@ -58,6 +62,8 @@ export default async function ImportarPage() {
       ultimaFechaTipoCambio={ultimaFechaTipoCambio}
       ultimosPorBanco={ultimosPorBanco}
       fechaSugeridaRevolut={fechaSugeridaRevolut}
+      fechaSugeridaSabadell={fechaSugeridaSabadell}
+      sabadellConectado={sabadellConectado}
       ultimaEjecucionCron={serializarEjecucion(ultimaEjecucionCronRaw)}
       ultimaEjecucionManual={serializarEjecucion(ultimaEjecucionManualRaw)}
     />

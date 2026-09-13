@@ -1,7 +1,8 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { formatUsd, formatEur } from "@/lib/format";
 
 type PagoResumen = { persona: string; fecha: string; importeEur: number | null; importeUsd: number | null };
@@ -38,7 +39,19 @@ type ResultadoRevolut = {
   pagosNuevos: PagoResumen[];
 };
 
-type Resultado = ResultadoPagos | ResultadoTipoCambio | ResultadoRevolut;
+type ResultadoSabadell = {
+  tipo: "sabadell";
+  contenedor: string;
+  desdeUsado: string;
+  totalSabadell: number;
+  nuevos: number;
+  duplicados: number;
+  anterioresAlInicio: number;
+  sinTasa: number;
+  pagosNuevos: PagoResumen[];
+};
+
+type Resultado = ResultadoPagos | ResultadoTipoCambio | ResultadoRevolut | ResultadoSabadell;
 
 type UltimoPagoBanco = {
   banco: string;
@@ -152,15 +165,20 @@ export default function ImportarClient({
   ultimaFechaTipoCambio,
   ultimosPorBanco,
   fechaSugeridaRevolut,
+  fechaSugeridaSabadell,
+  sabadellConectado,
   ultimaEjecucionCron,
   ultimaEjecucionManual,
 }: {
   ultimaFechaTipoCambio: string | null;
   ultimosPorBanco: UltimoPagoBanco[];
   fechaSugeridaRevolut: string;
+  fechaSugeridaSabadell: string;
+  sabadellConectado: boolean;
   ultimaEjecucionCron: EjecucionBCE | null;
   ultimaEjecucionManual: EjecucionBCE | null;
 }) {
+  const searchParams = useSearchParams();
   const inputRef = useRef<HTMLInputElement>(null);
   const [archivo, setArchivo] = useState<File | null>(null);
   const [cargando, setCargando] = useState(false);
@@ -168,12 +186,24 @@ export default function ImportarClient({
   const [cargandoRevolut, setCargandoRevolut] = useState(false);
   const [errorRevolut, setErrorRevolut] = useState<string | null>(null);
   const [fechaDesde, setFechaDesde] = useState(fechaSugeridaRevolut);
+  const [cargandoSabadell, setCargandoSabadell] = useState(false);
+  const [errorSabadell, setErrorSabadell] = useState<string | null>(null);
+  const [fechaDesdeSabadell, setFechaDesdeSabadell] = useState(fechaSugeridaSabadell);
+  const [avisoSabadell, setAvisoSabadell] = useState<string | null>(null);
   const [resultado, setResultado] = useState<Resultado | null>(null);
   const [ultimaFecha, setUltimaFecha] = useState<string | null>(ultimaFechaTipoCambio);
   const [porBanco, setPorBanco] = useState(ultimosPorBanco);
   const [cargandoBCE, setCargandoBCE] = useState(false);
   const [ejecucionCron, setEjecucionCron] = useState(ultimaEjecucionCron);
   const [ejecucionManual, setEjecucionManual] = useState(ultimaEjecucionManual);
+
+  useEffect(() => {
+    if (searchParams.get("sabadellConectado")) {
+      setAvisoSabadell("Conexión con Sabadell establecida correctamente.");
+    } else if (searchParams.get("sabadellError")) {
+      setErrorSabadell(`Error al conectar con Sabadell: ${searchParams.get("sabadellError")}`);
+    }
+  }, [searchParams]);
 
   function actualizarUltimoPorBanco(banco: string, pagosNuevos: PagoResumen[]) {
     if (!pagosNuevos || pagosNuevos.length === 0) return;
@@ -254,6 +284,33 @@ export default function ImportarClient({
       setErrorRevolut("No se ha podido conectar con el servidor. Inténtalo de nuevo.");
     } finally {
       setCargandoRevolut(false);
+    }
+  }
+
+  async function sincronizarSabadell() {
+    setCargandoSabadell(true);
+    setErrorSabadell(null);
+    setResultado(null);
+
+    try {
+      const res = await fetch("/api/sabadell/sincronizar", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ desde: fechaDesdeSabadell }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setErrorSabadell(data.error || "Error al sincronizar con Sabadell");
+      } else {
+        setResultado({ tipo: "sabadell", ...data });
+        if (data.pagosNuevos?.length > 0) {
+          actualizarUltimoPorBanco("Sabadell", data.pagosNuevos);
+        }
+      }
+    } catch (e) {
+      setErrorSabadell("No se ha podido conectar con el servidor. Inténtalo de nuevo.");
+    } finally {
+      setCargandoSabadell(false);
     }
   }
 
@@ -382,6 +439,50 @@ export default function ImportarClient({
           </div>
         )}
 
+        {/* Conexión / sincronización con Sabadell */}
+        {avisoSabadell && (
+          <div className="mb-3 bg-teal-bg border border-[#CDE9DF] rounded-xl p-3.5 text-[13.5px] text-[#0F5D45]">
+            {avisoSabadell}
+          </div>
+        )}
+
+        {sabadellConectado ? (
+          <>
+            <div className="mb-1 flex items-center gap-2">
+              <button
+                onClick={sincronizarSabadell}
+                disabled={cargandoSabadell}
+                className="flex-1 py-3 bg-white border border-line rounded-lg text-[13.5px] font-semibold flex items-center justify-center gap-2 disabled:opacity-60"
+              >
+                <span>🔄</span>
+                {cargandoSabadell ? "Buscando..." : "Buscar pagos nuevos en Sabadell"}
+              </button>
+              <input
+                type="date"
+                value={fechaDesdeSabadell}
+                onChange={(e) => setFechaDesdeSabadell(e.target.value)}
+                className="border border-line rounded-lg px-2 py-3 text-[13px] font-mono bg-white w-[132px]"
+              />
+            </div>
+            <div className="text-[11.5px] text-steel mb-4 font-mono">
+              Buscando pagos desde el {formatFecha(fechaDesdeSabadell)}
+            </div>
+          </>
+        ) : (
+          <a
+            href="/api/sabadell/authorize"
+            className="block w-full mb-4 py-3 bg-white border border-line rounded-lg text-[13.5px] font-semibold text-center"
+          >
+            🔗 Conectar con Sabadell
+          </a>
+        )}
+
+        {errorSabadell && (
+          <div className="mb-5 bg-alert-bg border border-[#F3C9C9] rounded-xl p-3.5 text-[13.5px] text-[#8A2E2E]">
+            {errorSabadell}
+          </div>
+        )}
+
         {/* Zona de selección de fichero */}
         <div
           onClick={() => inputRef.current?.click()}
@@ -492,6 +593,36 @@ export default function ImportarClient({
               <div className="text-[13px] text-[#0F5D45] space-y-1 font-mono">
                 <div>Contenedor: {resultado.contenedor}</div>
                 <div>Transacciones en Revolut: {resultado.totalRevolut}</div>
+                <div>Buscado desde: {formatFecha(resultado.desdeUsado)}</div>
+                <div>✓ Pagos nuevos importados: {resultado.nuevos}</div>
+                <div>· Duplicados (ya existían): {resultado.duplicados}</div>
+                {resultado.anterioresAlInicio > 0 && (
+                  <div>· Descartados por ser anteriores al inicio del contenedor: {resultado.anterioresAlInicio}</div>
+                )}
+                {resultado.sinTasa > 0 && <div>⚠ Sin tipo de cambio ese día: {resultado.sinTasa}</div>}
+              </div>
+            </div>
+
+            {resultado.pagosNuevos.length > 0 && <ListaPagosNuevos pagos={resultado.pagosNuevos} />}
+
+            <Link
+              href="/dashboard"
+              className="block text-center mt-5 py-3 bg-navy-950 text-white font-semibold text-[13.5px] rounded-lg"
+            >
+              Ir al Inicio y asignar cobradores
+            </Link>
+          </div>
+        )}
+
+        {resultado && resultado.tipo === "sabadell" && (
+          <div className="mt-5">
+            <div className="bg-teal-bg border border-[#CDE9DF] rounded-xl p-4 mb-4">
+              <div className="font-display font-semibold text-[15px] text-[#0F5D45] mb-2">
+                Sincronización con Sabadell completada
+              </div>
+              <div className="text-[13px] text-[#0F5D45] space-y-1 font-mono">
+                <div>Contenedor: {resultado.contenedor}</div>
+                <div>Transacciones en Sabadell: {resultado.totalSabadell}</div>
                 <div>Buscado desde: {formatFecha(resultado.desdeUsado)}</div>
                 <div>✓ Pagos nuevos importados: {resultado.nuevos}</div>
                 <div>· Duplicados (ya existían): {resultado.duplicados}</div>
