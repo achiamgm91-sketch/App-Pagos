@@ -21,6 +21,9 @@ async function llamarEnableBanking(path: string, init?: RequestInit) {
   });
   if (!res.ok) {
     const texto = await res.text();
+    if (res.status === 429 && texto.includes("ASPSP_RATE_LIMIT_EXCEEDED")) {
+      throw new Error("Se han excedido el límite de las cuatro consultas diarias que permite Sabadell. Vuelve a intentarlo mañana.");
+    }
     throw new Error(`Error al llamar a Enable Banking (${path}): ${res.status} ${texto}`);
   }
   return res.json();
