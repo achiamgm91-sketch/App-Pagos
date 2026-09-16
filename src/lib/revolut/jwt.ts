@@ -5,6 +5,15 @@ function base64url(input: Buffer | string): string {
   return buf.toString("base64").replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 }
 
+function normalizarClavePrivada(valor: string): string {
+  const conNewlinesReales = valor.replace(/\\n/g, "\n").trim();
+  if (conNewlinesReales.includes("-----BEGIN")) {
+    return conNewlinesReales;
+  }
+  // No parece PEM en claro: asumimos que está codificada en base64.
+  return Buffer.from(valor.trim(), "base64").toString("utf-8");
+}
+
 export function generarClientAssertion(): string {
   const privateKey = process.env.REVOLUT_PRIVATE_KEY;
   const clientId = process.env.REVOLUT_CLIENT_ID;
@@ -31,7 +40,7 @@ export function generarClientAssertion(): string {
   const signer = crypto.createSign("RSA-SHA256");
   signer.update(unsigned);
   signer.end();
-  const signature = signer.sign(privateKey.replace(/\\n/g, "\n"));
+  const signature = signer.sign(normalizarClavePrivada(privateKey));
 
   return `${unsigned}.${base64url(signature)}`;
 }
