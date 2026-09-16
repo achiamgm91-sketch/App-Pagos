@@ -1,6 +1,8 @@
 import { prisma } from "@/lib/prisma";
 import Link from "next/link";
 import CambiarPassword from "@/components/CambiarPassword";
+import CrearUsuario from "@/components/CrearUsuario";
+import PermisoVerTodo from "@/components/PermisoVerTodo";
 
 export const dynamic = "force-dynamic";
 
@@ -19,6 +21,11 @@ export default async function UsuariosPage() {
     include: { cobrador: true },
     orderBy: { creadoEn: "asc" },
   });
+  const cobradores = await prisma.cobrador.findMany({
+    where: { activo: true },
+    select: { id: true, nombre: true },
+    orderBy: { nombre: "asc" },
+  });
 
   return (
     <div className="min-h-screen">
@@ -36,6 +43,8 @@ export default async function UsuariosPage() {
           <h2 className="font-display text-[22px] font-semibold">Usuarios</h2>
           <p className="text-steel text-[13px] mt-1">{usuarios.length} usuario(s) dado(s) de alta</p>
         </div>
+
+        <CrearUsuario cobradores={cobradores} />
 
         {usuarios.map((u) => (
           <div key={u.id} className="bg-white border border-line rounded-xl p-4 mb-3">
@@ -57,6 +66,14 @@ export default async function UsuariosPage() {
                 {ROL_LABEL[u.rol] ?? u.rol}
               </span>
             </div>
+
+            {u.debeCambiarPassword && (
+              <div className="text-[11px] font-mono text-amber-ink mt-1.5">
+                ⏳ Pendiente de que cambie su contraseña
+              </div>
+            )}
+
+            {u.rol === "COBRADOR" && <PermisoVerTodo usuarioId={u.id} valorInicial={u.verTodosPagos} />}
 
             <CambiarPassword usuarioId={u.id} nombre={u.nombre ?? u.usuario} />
           </div>

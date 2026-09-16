@@ -27,12 +27,14 @@ enum OrigenEjecucion {
 }
 
 model Usuario {
-  id           String   @id @default(cuid())
-  usuario      String   @unique
-  passwordHash String
-  nombre       String?
-  rol          Rol      @default(ADMIN)
-  creadoEn     DateTime @default(now())
+  id                  String   @id @default(cuid())
+  usuario             String   @unique
+  passwordHash        String
+  nombre              String?
+  rol                 Rol      @default(ADMIN)
+  debeCambiarPassword Boolean  @default(false)
+  verTodosPagos       Boolean  @default(false)
+  creadoEn            DateTime @default(now())
 
   cobradorId String?   @unique
   cobrador   Cobrador? @relation("UsuarioDeCobrador", fields: [cobradorId], references: [id])

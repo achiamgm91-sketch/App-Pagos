@@ -10,6 +10,10 @@ export async function middleware(req: NextRequest) {
     return NextResponse.redirect(loginUrl);
   }
 
+  if (token.debeCambiarPassword && pathname !== "/cambiar-password") {
+    return NextResponse.redirect(new URL("/cambiar-password", req.url));
+  }
+
   if (pathname.startsWith("/dashboard") && token.rol !== "ADMIN") {
     return NextResponse.redirect(new URL("/mi/pendientes", req.url));
   }
@@ -18,5 +22,5 @@ export async function middleware(req: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/dashboard/:path*", "/mi/:path*", "/api/pagos/:path*", "/api/contenedores/:path*"],
+  matcher: ["/dashboard/:path*", "/mi/:path*", "/cambiar-password", "/api/pagos/:path*", "/api/contenedores/:path*"],
 };

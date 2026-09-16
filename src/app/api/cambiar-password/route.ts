@@ -4,10 +4,10 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import bcrypt from "bcryptjs";
 
-export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
+export async function POST(req: NextRequest) {
   const session = await getServerSession(authOptions);
-  if (!session || (session.user as any).rol !== "ADMIN") {
-    return NextResponse.json({ error: "No autorizado" }, { status: 403 });
+  if (!session) {
+    return NextResponse.json({ error: "No autorizado" }, { status: 401 });
   }
 
   const { password } = await req.json();
@@ -16,10 +16,11 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   }
 
   const passwordHash = await bcrypt.hash(password, 10);
+  const usuarioId = (session.user as any).id as string;
 
   await prisma.usuario.update({
-    where: { id: params.id },
-    data: { passwordHash, debeCambiarPassword: true },
+    where: { id: usuarioId },
+    data: { passwordHash, debeCambiarPassword: false },
   });
 
   return NextResponse.json({ ok: true });

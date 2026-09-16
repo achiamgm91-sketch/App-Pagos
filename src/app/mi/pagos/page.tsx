@@ -10,9 +10,10 @@ export const dynamic = "force-dynamic";
 export default async function MisPagosPage() {
   const session = await getServerSession(authOptions);
   const cobradorId = (session?.user as any)?.cobradorId as string | null;
+  const verTodosPagos = (session?.user as any)?.verTodosPagos as boolean;
   const nombre = session?.user?.name ?? "";
 
-  if (!cobradorId) {
+  if (!cobradorId && !verTodosPagos) {
     return (
       <div className="min-h-screen flex items-center justify-center p-6 text-center">
         <div>
@@ -24,7 +25,7 @@ export default async function MisPagosPage() {
   }
 
   const misPagos = await prisma.pago.findMany({
-    where: { cobradorId },
+    where: verTodosPagos ? { cobradorId: { not: null } } : { cobradorId },
     include: { contenedor: true, cobrador: true, cobradorAsignadoPor: true },
     orderBy: { persona: "asc" },
   });

@@ -32,17 +32,24 @@ export const authOptions: NextAuthOptions = {
           usuario: user.usuario,
           rol: user.rol,
           cobradorId: user.cobradorId,
+          debeCambiarPassword: user.debeCambiarPassword,
+          verTodosPagos: user.verTodosPagos,
         } as any;
       },
     }),
   ],
   callbacks: {
-    async jwt({ token, user }) {
+    async jwt({ token, user, trigger, session }) {
       if (user) {
         token.id = (user as any).id;
         token.usuario = (user as any).usuario;
         token.rol = (user as any).rol;
         token.cobradorId = (user as any).cobradorId ?? null;
+        token.debeCambiarPassword = (user as any).debeCambiarPassword ?? false;
+        token.verTodosPagos = (user as any).verTodosPagos ?? false;
+      }
+      if (trigger === "update" && session) {
+        Object.assign(token, session);
       }
       return token;
     },
@@ -52,6 +59,8 @@ export const authOptions: NextAuthOptions = {
         (session.user as any).usuario = token.usuario;
         (session.user as any).rol = token.rol;
         (session.user as any).cobradorId = token.cobradorId ?? null;
+        (session.user as any).debeCambiarPassword = token.debeCambiarPassword ?? false;
+        (session.user as any).verTodosPagos = token.verTodosPagos ?? false;
       }
       return session;
     },
