@@ -7,5 +7,5 @@ export default async function Home() {
   if (!session) redirect("/login");
 
   const rol = (session.user as any).rol;
-  redirect(rol === "ADMIN" ? "/dashboard" : "/mi/pendientes");
+  redirect(rol === "ADMIN" || rol === "SUPERADMIN" ? "/dashboard" : "/mi/pendientes");
 }

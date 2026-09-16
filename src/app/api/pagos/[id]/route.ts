@@ -10,7 +10,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   }
 
   const rol = (session.user as any).rol as string;
-  if (rol !== "ADMIN") {
+  if (!["ADMIN", "SUPERADMIN"].includes(rol)) {
     return NextResponse.json({ error: "No autorizado" }, { status: 403 });
   }
 
@@ -54,7 +54,7 @@ export async function DELETE(req: NextRequest, { params }: { params: { id: strin
   }
 
   const rol = (session.user as any).rol as string;
-  if (rol !== "ADMIN") {
+  if (!["ADMIN", "SUPERADMIN"].includes(rol)) {
     return NextResponse.json({ error: "No autorizado" }, { status: 403 });
   }
 

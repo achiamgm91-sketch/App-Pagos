@@ -53,7 +53,7 @@ export async function DELETE(_req: NextRequest, { params }: { params: { id: stri
   }
 
   const rol = (session.user as any).rol as string;
-  if (rol !== "ADMIN") {
+  if (!["ADMIN", "SUPERADMIN"].includes(rol)) {
     return NextResponse.json({ error: "No autorizado" }, { status: 403 });
   }
 

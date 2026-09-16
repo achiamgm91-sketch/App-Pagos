@@ -7,7 +7,7 @@ import { round2 } from "@/lib/format";
 
 export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
   const session = await getServerSession(authOptions);
-  if (!session || (session.user as any).rol !== "ADMIN") {
+  if (!session || !["ADMIN", "SUPERADMIN"].includes((session.user as any).rol)) {
     return NextResponse.json({ error: "No autorizado" }, { status: 403 });
   }
 
