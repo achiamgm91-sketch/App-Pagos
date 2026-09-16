@@ -30,14 +30,14 @@ export default async function ActividadPage() {
         <Link href="/dashboard" className="font-mono text-[13px] text-steel-light">
           ← Inicio
         </Link>
-        <div className="font-display font-semibold text-base">Actividad</div>
+        <div className="font-display font-semibold text-base">Supervisión</div>
         <div className="w-10" />
       </div>
 
       <main className="max-w-2xl mx-auto w-full px-4 py-6">
         <div className="mb-5">
           <div className="font-mono text-[11px] uppercase text-steel mb-1.5">Superadministrador</div>
-          <h2 className="font-display text-[22px] font-semibold">Registro de actividad</h2>
+          <h2 className="font-display text-[22px] font-semibold">Supervisión</h2>
           <p className="text-steel text-[13px] mt-1">
             Últimos {actividades.length} cambios hechos por cualquier usuario, incluidos los administradores.
           </p>
