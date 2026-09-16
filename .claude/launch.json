@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "boomerang-pagos-dev",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["scripts/dev-with-port.js"],
+      "autoPort": true
+    }
+  ]
+}
