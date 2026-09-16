@@ -1,3 +1,5 @@
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import Link from "next/link";
 import CambiarPassword from "@/components/CambiarPassword";
@@ -7,16 +9,21 @@ import PermisoVerTodo from "@/components/PermisoVerTodo";
 export const dynamic = "force-dynamic";
 
 const ROL_LABEL: Record<string, string> = {
+  SUPERADMIN: "Superadmin",
   ADMIN: "Administrador",
   COBRADOR: "Cobrador",
 };
 
 const ROL_COLOR: Record<string, string> = {
+  SUPERADMIN: "bg-navy-950/10 text-navy-950",
   ADMIN: "bg-amber/15 text-amber-ink",
   COBRADOR: "bg-teal-bg text-[#0F5D45]",
 };
 
 export default async function UsuariosPage() {
+  const session = await getServerSession(authOptions);
+  const esSuperAdmin = (session?.user as any)?.rol === "SUPERADMIN";
+
   const usuarios = await prisma.usuario.findMany({
     include: { cobrador: true },
     orderBy: { creadoEn: "asc" },
@@ -44,7 +51,7 @@ export default async function UsuariosPage() {
           <p className="text-steel text-[13px] mt-1">{usuarios.length} usuario(s) dado(s) de alta</p>
         </div>
 
-        <CrearUsuario cobradores={cobradores} />
+        <CrearUsuario cobradores={cobradores} puedeCrearSuperAdmin={esSuperAdmin} />
 
         {usuarios.map((u) => (
           <div key={u.id} className="bg-white border border-line rounded-xl p-4 mb-3">

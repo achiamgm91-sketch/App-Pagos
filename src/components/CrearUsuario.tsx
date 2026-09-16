@@ -5,13 +5,19 @@ import { useRouter } from "next/navigation";
 
 type Cobrador = { id: string; nombre: string };
 
-export default function CrearUsuario({ cobradores }: { cobradores: Cobrador[] }) {
+export default function CrearUsuario({
+  cobradores,
+  puedeCrearSuperAdmin,
+}: {
+  cobradores: Cobrador[];
+  puedeCrearSuperAdmin?: boolean;
+}) {
   const router = useRouter();
   const [abierto, setAbierto] = useState(false);
   const [usuario, setUsuario] = useState("");
   const [nombre, setNombre] = useState("");
   const [password, setPassword] = useState("");
-  const [rol, setRol] = useState<"ADMIN" | "COBRADOR">("COBRADOR");
+  const [rol, setRol] = useState<"ADMIN" | "COBRADOR" | "SUPERADMIN">("COBRADOR");
   const [cobradorId, setCobradorId] = useState("");
   const [verTodosPagos, setVerTodosPagos] = useState(false);
   const [cargando, setCargando] = useState(false);
@@ -122,6 +128,17 @@ export default function CrearUsuario({ cobradores }: { cobradores: Cobrador[] })
           >
             Administrador
           </button>
+          {puedeCrearSuperAdmin && (
+            <button
+              type="button"
+              onClick={() => setRol("SUPERADMIN")}
+              className={`flex-1 py-2 rounded-lg text-[13px] font-semibold border ${
+                rol === "SUPERADMIN" ? "bg-navy-950 text-white border-navy-950" : "border-line"
+              }`}
+            >
+              Superadmin
+            </button>
+          )}
         </div>
       </div>
 

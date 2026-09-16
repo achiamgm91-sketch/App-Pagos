@@ -11,6 +11,7 @@ datasource db {
 }
 
 enum Rol {
+  SUPERADMIN
   ADMIN
   COBRADOR
 }
@@ -49,6 +50,7 @@ model Usuario {
   tiposCambioCreados      TipoCambioDia[] @relation("TipoCambioCreadoPor")
   tiposCambioActualizados TipoCambioDia[] @relation("TipoCambioActualizadoPor")
   cronEjecuciones CronEjecucion[] @relation("CronEjecucionUsuario")
+  actividades     RegistroActividad[]
 }
 
 model Cobrador {
@@ -117,6 +119,19 @@ model CronEjecucion {
   usuario   Usuario? @relation("CronEjecucionUsuario", fields: [usuarioId], references: [id])
 
   @@index([origen, ejecutadoEn])
+}
+
+model RegistroActividad {
+  id         String   @id @default(dbgenerated("gen_random_uuid()::text"))
+  usuarioId  String?
+  usuario    Usuario? @relation(fields: [usuarioId], references: [id])
+  accion     String
+  entidad    String
+  entidadId  String?
+  detalle    String?
+  creadoEn   DateTime @default(now())
+
+  @@index([creadoEn])
 }
 
 model RevolutToken {

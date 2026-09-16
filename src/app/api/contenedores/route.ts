@@ -2,10 +2,13 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { registrarActividad } from "@/lib/actividad";
+
+const ROLES_ADMIN = ["ADMIN", "SUPERADMIN"];
 
 export async function POST(req: NextRequest) {
   const session = await getServerSession(authOptions);
-  if (!session || (session.user as any).rol !== "ADMIN") {
+  if (!session || !ROLES_ADMIN.includes((session.user as any).rol)) {
     return NextResponse.json({ error: "No autorizado" }, { status: 403 });
   }
   const usuarioId = (session.user as any).id as string;
@@ -32,6 +35,15 @@ export async function POST(req: NextRequest) {
         actualizadoPorId: usuarioId,
       },
     });
+
+    await registrarActividad({
+      usuarioId,
+      accion: "crear_contenedor",
+      entidad: "Contenedor",
+      entidadId: contenedor.id,
+      detalle: `Creó el contenedor "${nombre}"`,
+    });
+
     return NextResponse.json({ contenedor });
   } catch (e: any) {
     if (e.code === "P2002") {

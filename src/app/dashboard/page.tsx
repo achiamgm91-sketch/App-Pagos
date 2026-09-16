@@ -148,6 +148,14 @@ export default async function DashboardPage({
         >
           <span>📈</span> Estadísticas
         </Link>
+        {(session?.user as any)?.rol === "SUPERADMIN" && (
+          <Link
+            href="/dashboard/actividad"
+            className="flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-steel-light text-[13.5px] font-medium hover:bg-white/5"
+          >
+            <span>🕵️</span> Actividad
+          </Link>
+        )}
       </div>
 
       <main className="max-w-3xl mx-auto md:mx-0 w-full px-4 py-5 md:px-10 md:py-8">

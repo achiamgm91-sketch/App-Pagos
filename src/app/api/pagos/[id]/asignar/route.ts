@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { registrarActividad } from "@/lib/actividad";
+
+const ROLES_ADMIN = ["ADMIN", "SUPERADMIN"];
 
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
   const session = await getServerSession(authOptions);
@@ -17,7 +20,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     return NextResponse.json({ error: "Falta cobradorId o contenedorId" }, { status: 400 });
   }
 
-  if (rol !== "ADMIN" && contenedorId) {
+  if (!ROLES_ADMIN.includes(rol) && contenedorId) {
     return NextResponse.json({ error: "No autorizado" }, { status: 403 });
   }
 
@@ -33,6 +36,16 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     where: { id: params.id },
     data,
     include: { cobrador: true, contenedor: true },
+  });
+
+  await registrarActividad({
+    usuarioId,
+    accion: "asignar_pago",
+    entidad: "Pago",
+    entidadId: params.id,
+    detalle: `${pago.persona}: ${cobradorId ? `asignado a ${pago.cobrador?.nombre}` : ""}${
+      contenedorId ? `movido al contenedor ${pago.contenedor?.nombre}` : ""
+    }`,
   });
 
   return NextResponse.json({ pago });

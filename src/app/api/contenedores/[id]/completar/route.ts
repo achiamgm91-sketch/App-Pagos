@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { registrarActividad } from "@/lib/actividad";
 
 export async function POST(_req: NextRequest, { params }: { params: { id: string } }) {
   const session = await getServerSession(authOptions);
@@ -12,6 +13,14 @@ export async function POST(_req: NextRequest, { params }: { params: { id: string
   const contenedor = await prisma.contenedor.update({
     where: { id: params.id },
     data: { estado: "COMPLETADO", actualizadoPorId: (session.user as any).id },
+  });
+
+  await registrarActividad({
+    usuarioId: (session.user as any).id,
+    accion: "completar_contenedor",
+    entidad: "Contenedor",
+    entidadId: params.id,
+    detalle: `Marcó "${contenedor.nombre}" como completado`,
   });
 
   return NextResponse.json({ contenedor });

@@ -14,8 +14,12 @@ export async function middleware(req: NextRequest) {
     return NextResponse.redirect(new URL("/cambiar-password", req.url));
   }
 
-  if (pathname.startsWith("/dashboard") && token.rol !== "ADMIN") {
+  if (pathname.startsWith("/dashboard") && token.rol !== "ADMIN" && token.rol !== "SUPERADMIN") {
     return NextResponse.redirect(new URL("/mi/pendientes", req.url));
+  }
+
+  if (pathname.startsWith("/dashboard/actividad") && token.rol !== "SUPERADMIN") {
+    return NextResponse.redirect(new URL("/dashboard", req.url));
   }
 
   return NextResponse.next();

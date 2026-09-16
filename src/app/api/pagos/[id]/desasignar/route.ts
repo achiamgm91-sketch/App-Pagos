@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { registrarActividad } from "@/lib/actividad";
 
 export async function POST(_req: NextRequest, { params }: { params: { id: string } }) {
   const session = await getServerSession(authOptions);
@@ -24,6 +25,14 @@ export async function POST(_req: NextRequest, { params }: { params: { id: string
       cobradorAsignadoEn: null,
       actualizadoPorId: usuarioId,
     },
+  });
+
+  await registrarActividad({
+    usuarioId,
+    accion: "desasignar_pago",
+    entidad: "Pago",
+    entidadId: params.id,
+    detalle: `${pago.persona}: quitado del cobrador`,
   });
 
   return NextResponse.json({ pago: actualizado });
