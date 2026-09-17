@@ -105,6 +105,13 @@ export default function LoginPage() {
             {loading ? "Entrando..." : "Entrar"}
           </button>
         </form>
+
+        <a
+          href="https://www.blglobalsuministro.com/"
+          className="mt-4 block w-full py-3 text-center border border-white/[0.14] text-steel-light font-semibold text-[13.5px] rounded-lg hover:bg-white/[0.04] hover:text-white"
+        >
+          Ir a BL Global Suministro
+        </a>
       </div>
     </div>
   );

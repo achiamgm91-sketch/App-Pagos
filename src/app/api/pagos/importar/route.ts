@@ -6,6 +6,7 @@ import { detectarBancoEnFilasCrudas, filasCrudasAObjetos, bancosSoportados } fro
 import { esFicheroTipoCambioBDE, procesarTipoCambioBDE } from "@/lib/importers/tipoCambio";
 import { obtenerTasasOrdenadas, buscarTasaConFecha, recalcularPagosConTasaMejorable, guardarTasasCambio } from "@/lib/tipoCambio";
 import { registrarActividad } from "@/lib/actividad";
+import { filtrarPagosNuevos } from "@/lib/dedupPagos";
 import Papa from "papaparse";
 import * as XLSX from "xlsx";
 
@@ -111,24 +112,18 @@ export async function POST(req: NextRequest) {
   const dentroDeRango = detectados.filter((d) => d.fecha >= fechaInicioContenedor);
   const anterioresAlInicio = detectados.length - dentroDeRango.length;
 
-  const idsExistentes = new Set(
-    (
-      await prisma.pago.findMany({
-        where: { idOrigen: { in: dentroDeRango.map((d) => d.idOrigen) } },
-        select: { idOrigen: true },
-      })
-    ).map((p) => p.idOrigen)
-  );
+  const round2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
 
-  const nuevos = dentroDeRango.filter((d) => !idsExistentes.has(d.idOrigen));
+  const nuevos = await filtrarPagosNuevos(
+    contenedor.id,
+    dentroDeRango.map((d) => ({ ...d, importe: round2(d.importe) }))
+  );
   const duplicados = dentroDeRango.length - nuevos.length;
 
   const tasasOrdenadas = await obtenerTasasOrdenadas();
 
   let sinTasa = 0;
   const pagosNuevos: any[] = [];
-
-  const round2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
 
   for (const d of nuevos) {
     const encontrada = buscarTasaConFecha(tasasOrdenadas, d.fecha);

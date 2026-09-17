@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { obtenerTransaccionesSabadell } from "./transacciones";
 import { obtenerTasasOrdenadas, buscarTasaConFecha } from "@/lib/tipoCambio";
+import { filtrarPagosNuevos } from "@/lib/dedupPagos";
 
 function fechaISO(d: Date) {
   return d.toISOString().slice(0, 10);
@@ -17,17 +18,11 @@ const MARGEN_DIAS_POR_DEFECTO = 5;
 
 export async function calcularFechaSugeridaSabadell(): Promise<string> {
   const contenedor = await prisma.contenedor.findFirst({ where: { estado: "ACTIVO" } });
-  const ultimoPago = await prisma.pago.findFirst({
-    where: { banco: "Sabadell", idOrigen: { startsWith: "SABADELL-EB:" } },
-    orderBy: { fecha: "desc" },
-  });
+  const baseFecha = contenedor ? fechaISO(contenedor.fechaInicio) : fechaISO(new Date());
 
-  const baseFecha = ultimoPago
-    ? fechaISO(ultimoPago.fecha)
-    : contenedor
-    ? fechaISO(contenedor.fechaInicio)
-    : fechaISO(new Date());
-
+  // Siempre se revisa desde el inicio del contenedor activo (no solo desde el
+  // último pago importado), para detectar pagos antiguos que se hayan quedado
+  // sin importar. La deduplicación por idOrigen evita crear pagos repetidos.
   return restarDias(baseFecha, MARGEN_DIAS_POR_DEFECTO);
 }
 
@@ -45,16 +40,10 @@ export async function sincronizarPagosSabadell(usuarioId: string, desdeParam?: s
   const dentroDeRango = detectados.filter((d) => d.fecha >= fechaInicioContenedor);
   const anterioresAlInicio = detectados.length - dentroDeRango.length;
 
-  const idsExistentes = new Set(
-    (
-      await prisma.pago.findMany({
-        where: { idOrigen: { in: dentroDeRango.map((d) => d.idOrigen) } },
-        select: { idOrigen: true },
-      })
-    ).map((p) => p.idOrigen)
+  const nuevos = await filtrarPagosNuevos(
+    contenedor.id,
+    dentroDeRango.map((d) => ({ ...d, importe: round2(d.importe) }))
   );
-
-  const nuevos = dentroDeRango.filter((d) => !idsExistentes.has(d.idOrigen));
   const tasasOrdenadas = await obtenerTasasOrdenadas();
 
   let sinTasa = 0;
