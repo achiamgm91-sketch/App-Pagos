@@ -1,8 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
 import { sincronizarPagosSabadell } from "@/lib/enableBanking/sincronizar";
-
-const USUARIO_CRON = "cron@boomerang";
+import { obtenerOcrearUsuarioCron } from "@/lib/usuarioSistema";
 
 export async function GET(req: NextRequest) {
   const authHeader = req.headers.get("authorization");
@@ -10,13 +8,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "No autorizado" }, { status: 401 });
   }
 
-  const usuarioCron = await prisma.usuario.findUnique({ where: { usuario: USUARIO_CRON } });
-  if (!usuarioCron) {
-    return NextResponse.json(
-      { error: `Usuario de sistema '${USUARIO_CRON}' no encontrado en la tabla Usuario.` },
-      { status: 500 }
-    );
-  }
+  const usuarioCron = await obtenerOcrearUsuarioCron();
 
   try {
     const resultado = await sincronizarPagosSabadell(usuarioCron.id);

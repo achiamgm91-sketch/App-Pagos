@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { round2 } from "@/lib/format";
 import { TasaDetectada } from "./importers/tipoCambio";
 import { descargarTasasBCE } from "./importers/tipoCambioBCE";
+import { obtenerOcrearUsuarioCron } from "@/lib/usuarioSistema";
 
 export type TasaOrdenada = { fecha: string; valor: number };
 export type TasaEncontrada = { valor: number; fechaTasa: string } | null;
@@ -133,7 +134,6 @@ export async function guardarTasasCambio(
   };
 }
 
-const USUARIO_CRON = "cron@boomerang";
 const FECHA_MINIMA_FALLBACK = "2026-01-01";
 
 export type ResultadoEjecucionBCE = {
@@ -154,15 +154,7 @@ export async function ejecutarSincronizacionBCE(
   origen: "CRON" | "MANUAL",
   usuarioQueDisparaId: string | null
 ): Promise<ResultadoEjecucionBCE> {
-  const usuarioCron = await prisma.usuario.findUnique({ where: { usuario: USUARIO_CRON } });
-
-  if (!usuarioCron) {
-    const mensajeError = `Usuario de sistema '${USUARIO_CRON}' no encontrado en la base de datos`;
-    await prisma.cronEjecucion.create({
-      data: { origen, exitoso: false, mensajeError, usuarioId: usuarioQueDisparaId },
-    });
-    return { exitoso: false, origen, ejecutadoEn: new Date().toISOString(), mensajeError };
-  }
+  const usuarioCron = await obtenerOcrearUsuarioCron();
 
   const ultimo = await prisma.tipoCambioDia.aggregate({ _max: { fecha: true } });
   const fechaDesde = ultimo._max.fecha
