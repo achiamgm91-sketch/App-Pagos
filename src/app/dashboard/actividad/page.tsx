@@ -9,8 +9,14 @@ const ACCION_LABEL: Record<string, string> = {
   resetear_password: "Reseteó una contraseña",
   asignar_pago: "Asignó un pago",
   desasignar_pago: "Desasignó un pago",
+  editar_pago: "Editó un pago",
+  eliminar_pago: "Eliminó un pago",
   crear_contenedor: "Creó un contenedor",
+  editar_contenedor: "Editó un contenedor",
+  eliminar_contenedor: "Eliminó un contenedor",
   completar_contenedor: "Completó un contenedor",
+  recalcular_pagos: "Recalculó pagos con nueva tasa",
+  importar_pagos: "Importó pagos desde un fichero",
 };
 
 function formatFechaHora(d: Date) {

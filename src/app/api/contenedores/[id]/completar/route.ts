@@ -10,6 +10,11 @@ export async function POST(_req: NextRequest, { params }: { params: { id: string
     return NextResponse.json({ error: "No autorizado" }, { status: 401 });
   }
 
+  const rol = (session.user as any).rol as string;
+  if (!["ADMIN", "SUPERADMIN"].includes(rol)) {
+    return NextResponse.json({ error: "No autorizado" }, { status: 403 });
+  }
+
   const contenedor = await prisma.contenedor.update({
     where: { id: params.id },
     data: { estado: "COMPLETADO", actualizadoPorId: (session.user as any).id },

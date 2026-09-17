@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { registrarActividad } from "@/lib/actividad";
 
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
   const session = await getServerSession(authOptions);
@@ -44,6 +45,14 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     include: { cobrador: true, contenedor: true, cobradorAsignadoPor: true },
   });
 
+  await registrarActividad({
+    usuarioId,
+    accion: "editar_pago",
+    entidad: "Pago",
+    entidadId: pago.id,
+    detalle: `Editó el pago de "${pago.persona}"`,
+  });
+
   return NextResponse.json({ pago });
 }
 
@@ -58,7 +67,21 @@ export async function DELETE(req: NextRequest, { params }: { params: { id: strin
     return NextResponse.json({ error: "No autorizado" }, { status: 403 });
   }
 
+  const pago = await prisma.pago.findUnique({ where: { id: params.id }, select: { id: true, persona: true } });
+  if (!pago) {
+    return NextResponse.json({ error: "Pago no encontrado" }, { status: 404 });
+  }
+
   await prisma.pago.delete({ where: { id: params.id } });
+
+  const usuarioId = (session.user as any).id as string;
+  await registrarActividad({
+    usuarioId,
+    accion: "eliminar_pago",
+    entidad: "Pago",
+    entidadId: pago.id,
+    detalle: `Eliminó el pago de "${pago.persona}"`,
+  });
 
   return NextResponse.json({ ok: true });
 }

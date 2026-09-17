@@ -2,11 +2,17 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { registrarActividad } from "@/lib/actividad";
 
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
   const session = await getServerSession(authOptions);
   if (!session) {
     return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+  }
+
+  const rolPatch = (session.user as any).rol as string;
+  if (!["ADMIN", "SUPERADMIN"].includes(rolPatch)) {
+    return NextResponse.json({ error: "No autorizado" }, { status: 403 });
   }
 
   const usuarioId = (session.user as any).id as string;
@@ -43,6 +49,14 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     data,
   });
 
+  await registrarActividad({
+    usuarioId,
+    accion: "editar_contenedor",
+    entidad: "Contenedor",
+    entidadId: contenedor.id,
+    detalle: `Editó el contenedor "${contenedor.nombre}"`,
+  });
+
   return NextResponse.json({ contenedor });
 }
 
@@ -70,6 +84,15 @@ export async function DELETE(_req: NextRequest, { params }: { params: { id: stri
     prisma.pago.deleteMany({ where: { contenedorId: params.id } }),
     prisma.contenedor.delete({ where: { id: params.id } }),
   ]);
+
+  const usuarioId = (session.user as any).id as string;
+  await registrarActividad({
+    usuarioId,
+    accion: "eliminar_contenedor",
+    entidad: "Contenedor",
+    entidadId: contenedor.id,
+    detalle: `Eliminó el contenedor "${contenedor.nombre}" (y sus pagos)`,
+  });
 
   return NextResponse.json({ ok: true });
 }

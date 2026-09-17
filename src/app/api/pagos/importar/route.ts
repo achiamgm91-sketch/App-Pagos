@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { detectarBancoEnFilasCrudas, filasCrudasAObjetos, bancosSoportados } from "@/lib/importers";
 import { esFicheroTipoCambioBDE, procesarTipoCambioBDE } from "@/lib/importers/tipoCambio";
 import { obtenerTasasOrdenadas, buscarTasaConFecha, recalcularPagosConTasaMejorable, guardarTasasCambio } from "@/lib/tipoCambio";
+import { registrarActividad } from "@/lib/actividad";
 import Papa from "papaparse";
 import * as XLSX from "xlsx";
 
@@ -22,6 +23,10 @@ export async function POST(req: NextRequest) {
   const session = await getServerSession(authOptions);
   if (!session) {
     return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+  }
+  const rol = (session.user as any).rol as string;
+  if (!["ADMIN", "SUPERADMIN"].includes(rol)) {
+    return NextResponse.json({ error: "No autorizado" }, { status: 403 });
   }
   const usuarioId = (session.user as any).id as string;
 
@@ -158,6 +163,12 @@ export async function POST(req: NextRequest) {
 
   if (pagosNuevos.length > 0) {
     await prisma.pago.createMany({ data: pagosNuevos, skipDuplicates: true });
+    await registrarActividad({
+      usuarioId,
+      accion: "importar_pagos",
+      entidad: "Pago",
+      detalle: `Importó ${pagosNuevos.length} pago(s) de ${parser.banco} al contenedor "${contenedor.nombre}"`,
+    });
   }
 
   return NextResponse.json({
