@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { obtenerTransaccionesRevolut } from "@/lib/revolut/transacciones";
 import { obtenerTasasOrdenadas, buscarTasaConFecha } from "@/lib/tipoCambio";
 import { filtrarPagosNuevos } from "@/lib/dedupPagos";
+import { procesarTrasImportar } from "@/lib/cierreAutomatico";
 import { cargarCadenaContenedores, elegirContenedor, completarHorasBanco } from "@/lib/pagosBanco";
 
 function fechaISO(d: Date) {
@@ -89,6 +90,8 @@ export async function sincronizarPagosRevolut(usuarioId: string, desdeParam?: st
     await prisma.pago.createMany({ data: pagosNuevos, skipDuplicates: true });
   }
 
+  const cierre = await procesarTrasImportar();
+
   const pagosNuevosResumen = pagosNuevos.map((p, i) => ({
     contenedor: nuevos[i].contenedorDestino!.nombre,
     persona: p.persona,
@@ -106,5 +109,6 @@ export async function sincronizarPagosRevolut(usuarioId: string, desdeParam?: st
     anterioresAlInicio,
     sinTasa,
     pagosNuevos: pagosNuevosResumen,
+    cierre,
   };
 }

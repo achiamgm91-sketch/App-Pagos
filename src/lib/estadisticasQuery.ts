@@ -6,7 +6,7 @@ export type FiltrosEstadisticas = {
 };
 
 export async function obtenerTotalesDiarios(filtros: FiltrosEstadisticas) {
-  const where: any = {};
+  const where: any = { banco: { not: "Ajuste" } };
   if (filtros.contenedorId) where.contenedorId = filtros.contenedorId;
 
   if (filtros.rango !== "todo") {

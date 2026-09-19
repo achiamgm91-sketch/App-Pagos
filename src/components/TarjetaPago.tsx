@@ -251,7 +251,7 @@ export default function TarjetaPago({
           </span>
           <QuitarAsignacion pagoId={pago.id} />
         </div>
-      ) : (
+      ) : pago.banco === "Ajuste" ? null : (
         <AsignarCobrador pagoId={pago.id} cobradores={cobradores} />
       )}
     </div>

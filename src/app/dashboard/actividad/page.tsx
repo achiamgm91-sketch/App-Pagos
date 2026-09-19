@@ -15,6 +15,7 @@ const ACCION_LABEL: Record<string, string> = {
   editar_contenedor: "Editó un contenedor",
   eliminar_contenedor: "Eliminó un contenedor",
   completar_contenedor: "Completó un contenedor",
+  cierre_automatico: "Cierre automático de contenedor",
   recalcular_pagos: "Recalculó pagos con nueva tasa",
   importar_pagos: "Importó pagos desde un fichero",
 };

@@ -6,6 +6,7 @@ import { detectarBancoEnFilasCrudas, filasCrudasAObjetos, bancosSoportados } fro
 import { esFicheroTipoCambioBDE, procesarTipoCambioBDE } from "@/lib/importers/tipoCambio";
 import { obtenerTasasOrdenadas, buscarTasaConFecha, recalcularPagosConTasaMejorable, guardarTasasCambio } from "@/lib/tipoCambio";
 import { registrarActividad } from "@/lib/actividad";
+import { procesarTrasImportar } from "@/lib/cierreAutomatico";
 import { filtrarPagosNuevos } from "@/lib/dedupPagos";
 import { cargarCadenaContenedores, elegirContenedor } from "@/lib/pagosBanco";
 import Papa from "papaparse";
@@ -166,10 +167,13 @@ export async function POST(req: NextRequest) {
     });
   }
 
+  const cierre = await procesarTrasImportar();
+
   return NextResponse.json({
     tipo: "pagos",
     banco: parser.banco,
     contenedor: contenedor.nombre,
+    cierre,
     totalFichero: filas.length,
     nuevos: pagosNuevos.length,
     duplicados,

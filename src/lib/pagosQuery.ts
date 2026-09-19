@@ -32,6 +32,7 @@ function construirWhere(filtros: FiltrosPagos): Prisma.PagoWhereInput {
 
   if (filtros.cobrador === "__SIN_ASIGNAR__") {
     where.cobradorId = null;
+    where.banco = { not: "Ajuste" };
   } else if (filtros.cobrador) {
     where.cobrador = { nombre: filtros.cobrador };
   }
@@ -92,7 +93,7 @@ export async function obtenerPagosFiltrados(filtros: FiltrosPagos, page: number)
       _sum: { importeUsd: true, importeEur: true },
     }),
     prisma.pago.count({ where }),
-    prisma.pago.count({ where: { ...where, cobradorId: null } }),
+    prisma.pago.count({ where: { ...where, cobradorId: null, banco: { not: "Ajuste" } } }),
   ]);
 
   return {
