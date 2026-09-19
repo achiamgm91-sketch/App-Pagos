@@ -115,7 +115,6 @@ export async function POST(req: NextRequest) {
   const round2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
 
   const nuevos = await filtrarPagosNuevos(
-    contenedor.id,
     dentroDeRango.map((d) => ({ ...d, importe: round2(d.importe) }))
   );
   const duplicados = dentroDeRango.length - nuevos.length;

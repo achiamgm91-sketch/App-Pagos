@@ -41,7 +41,6 @@ export async function sincronizarPagosSabadell(usuarioId: string, desdeParam?: s
   const anterioresAlInicio = detectados.length - dentroDeRango.length;
 
   const nuevos = await filtrarPagosNuevos(
-    contenedor.id,
     dentroDeRango.map((d) => ({ ...d, importe: round2(d.importe) }))
   );
   const tasasOrdenadas = await obtenerTasasOrdenadas();
