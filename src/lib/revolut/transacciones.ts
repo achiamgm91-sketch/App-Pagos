@@ -67,6 +67,7 @@ export async function obtenerTransaccionesRevolut(desde?: string, hasta?: string
         importe: leg.amount,
         moneda: leg.currency,
         banco: "Revolut",
+        fechaHoraBanco: t.completed_at || t.created_at || undefined,
       });
     }
   }

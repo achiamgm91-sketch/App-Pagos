@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { obtenerTransaccionesSabadell } from "./transacciones";
 import { obtenerTasasOrdenadas, buscarTasaConFecha } from "@/lib/tipoCambio";
 import { filtrarPagosNuevos } from "@/lib/dedupPagos";
+import { cargarCadenaContenedores, elegirContenedor, completarHorasBanco } from "@/lib/pagosBanco";
 
 function fechaISO(d: Date) {
   return d.toISOString().slice(0, 10);
@@ -36,13 +37,17 @@ export async function sincronizarPagosSabadell(usuarioId: string, desdeParam?: s
 
   const detectados = await obtenerTransaccionesSabadell(desde);
 
-  const fechaInicioContenedor = fechaISO(contenedor.fechaInicio);
-  const dentroDeRango = detectados.filter((d) => d.fecha >= fechaInicioContenedor);
+  const cadena = await cargarCadenaContenedores();
+  const asignados = detectados.map((d) => ({
+    ...d,
+    importe: round2(d.importe),
+    contenedorDestino: elegirContenedor(cadena, d),
+  }));
+  const dentroDeRango = asignados.filter((d) => d.contenedorDestino);
   const anterioresAlInicio = detectados.length - dentroDeRango.length;
 
-  const nuevos = await filtrarPagosNuevos(
-    dentroDeRango.map((d) => ({ ...d, importe: round2(d.importe) }))
-  );
+  await completarHorasBanco(detectados);
+  const nuevos = await filtrarPagosNuevos(dentroDeRango);
   const tasasOrdenadas = await obtenerTasasOrdenadas();
 
   let sinTasa = 0;
@@ -64,7 +69,7 @@ export async function sincronizarPagosSabadell(usuarioId: string, desdeParam?: s
     if (encontrada === null) sinTasa++;
 
     pagosNuevos.push({
-      contenedorId: contenedor.id,
+      contenedorId: d.contenedorDestino!.id,
       fecha: new Date(d.fecha),
       persona: d.persona,
       importeEur,
@@ -74,6 +79,7 @@ export async function sincronizarPagosSabadell(usuarioId: string, desdeParam?: s
       monedaOriginal: d.moneda,
       banco: d.banco,
       idOrigen: d.idOrigen,
+      fechaHoraBanco: d.fechaHoraBanco ? new Date(d.fechaHoraBanco) : null,
       creadoPorId: usuarioId,
       actualizadoPorId: usuarioId,
     });
@@ -83,7 +89,8 @@ export async function sincronizarPagosSabadell(usuarioId: string, desdeParam?: s
     await prisma.pago.createMany({ data: pagosNuevos, skipDuplicates: true });
   }
 
-  const pagosNuevosResumen = pagosNuevos.map((p) => ({
+  const pagosNuevosResumen = pagosNuevos.map((p, i) => ({
+    contenedor: nuevos[i].contenedorDestino!.nombre,
     persona: p.persona,
     fecha: fechaISO(p.fecha),
     importeEur: p.importeEur,

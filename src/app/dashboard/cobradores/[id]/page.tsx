@@ -3,6 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import QuitarAsignacion from "@/components/QuitarAsignacion";
 import { round2, formatUsd, formatEur } from "@/lib/format";
+import { ORDEN_BANCO_DESC, ORDEN_BANCO_ASC } from "@/lib/pagosBanco";
 
 export const dynamic = "force-dynamic";
 
@@ -25,7 +26,7 @@ export default async function DetalleCobradorPage({ params }: { params: { id: st
   const pagos = await prisma.pago.findMany({
     where: { cobradorId: params.id },
     include: { contenedor: true, cobradorAsignadoPor: true },
-    orderBy: [{ fecha: "asc" }, { persona: "asc" }],
+    orderBy: ORDEN_BANCO_DESC,
   });
 
   const total = round2(

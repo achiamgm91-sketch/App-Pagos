@@ -13,6 +13,24 @@ type TransaccionEB = {
   debtor?: { name?: string };
 };
 
+// Hora de Madrid (AAAA, MM, DD, hh, mm, ss) -> instante UTC en ISO.
+function madridAUtcISO(y: number, mo: number, d: number, h: number, mi: number, s: number): string {
+  const supuesto = Date.UTC(y, mo - 1, d, h, mi, s);
+  const partes = new Intl.DateTimeFormat("en-US", {
+    timeZone: "Europe/Madrid",
+    hourCycle: "h23",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  }).formatToParts(new Date(supuesto));
+  const v = (t: string) => Number(partes.find((p) => p.type === t)!.value);
+  const comoLocal = Date.UTC(v("year"), v("month") - 1, v("day"), v("hour"), v("minute"), v("second"));
+  return new Date(supuesto - (comoLocal - supuesto)).toISOString();
+}
+
 function extraerPersona(t: TransaccionEB): string {
   const nombre = t.debtor?.name?.trim();
   if (nombre) return nombre.toUpperCase();
@@ -44,7 +62,12 @@ export async function obtenerTransaccionesSabadell(desde?: string, hasta?: strin
     const fecha = (t.value_date || t.booking_date || "").slice(0, 10);
     if (!fecha) continue;
 
-    const idOrigen = `SABADELL-EB:${t.transaction_id || t.entry_reference}`;
+    const refBanco = String(t.transaction_id || t.entry_reference || "");
+    const idOrigen = `SABADELL-EB:${refBanco}`;
+
+    // La referencia de Sabadell empieza por AAAAMMDDHHMMSS (hora de España): es el orden real del banco.
+    const m = refBanco.match(/^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})/);
+    const fechaHoraBanco = m ? madridAUtcISO(+m[1], +m[2], +m[3], +m[4], +m[5], +m[6]) : undefined;
 
     resultado.push({
       idOrigen,
@@ -53,6 +76,7 @@ export async function obtenerTransaccionesSabadell(desde?: string, hasta?: strin
       importe,
       moneda: t.transaction_amount.currency,
       banco: "Sabadell",
+      fechaHoraBanco,
     });
   }
 

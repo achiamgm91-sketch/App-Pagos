@@ -11,6 +11,7 @@ export type PagoDetectado = {
   importe: number;
   moneda: string; // EUR o USD
   banco: string;
+  fechaHoraBanco?: string; // ISO; instante del pago según el banco, si se conoce
 };
 
 const COLUMNAS_REVOLUT = [

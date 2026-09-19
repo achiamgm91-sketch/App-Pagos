@@ -7,6 +7,7 @@ import SignOutButton from "@/components/SignOutButton";
 import CompletarContenedor from "@/components/CompletarContenedor";
 import SelectorContenedor from "@/components/SelectorContenedor";
 import { round2, formatUsd, formatEur } from "@/lib/format";
+import { ORDEN_BANCO_DESC, ORDEN_BANCO_ASC } from "@/lib/pagosBanco";
 
 export const dynamic = "force-dynamic";
 
@@ -33,7 +34,7 @@ export default async function DashboardPage({
   const includePagos = {
     pagos: {
       include: { cobrador: true, cobradorAsignadoPor: true },
-      orderBy: { fecha: "desc" as const },
+      orderBy: ORDEN_BANCO_DESC,
     },
   };
 

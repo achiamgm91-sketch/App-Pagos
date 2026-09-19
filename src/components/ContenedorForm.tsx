@@ -13,6 +13,7 @@ type ContenedorInicial = {
   totalFactura: string;
   monedaTotalFactura: string;
   estado: string;
+  inicioBanco?: string;
 };
 
 const ESTADOS = [
@@ -33,6 +34,7 @@ export default function ContenedorForm({ inicial }: { inicial: ContenedorInicial
   const [totalFactura, setTotalFactura] = useState(inicial.totalFactura);
   const [monedaTotalFactura, setMonedaTotalFactura] = useState(inicial.monedaTotalFactura);
   const [estado, setEstado] = useState(inicial.estado);
+  const [inicioBanco, setInicioBanco] = useState(inicial.inicioBanco ?? "");
   const [cargando, setCargando] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -53,6 +55,9 @@ export default function ContenedorForm({ inicial }: { inicial: ContenedorInicial
       totalFactura: parseFloat(totalFactura),
       monedaTotalFactura,
       estado,
+      ...(!esEdicion && inicioBanco
+        ? { inicioBanco: `${inicioBanco.length === 16 ? inicioBanco + ":00" : inicioBanco}Z` }
+        : {}),
     };
 
     const url = esEdicion ? `/api/contenedores/${inicial.id}` : "/api/contenedores";
@@ -136,6 +141,26 @@ export default function ContenedorForm({ inicial }: { inicial: ContenedorInicial
           className="w-full px-3.5 py-2.5 border border-line rounded-lg text-[14px] font-mono outline-none focus:border-navy-800"
         />
       </div>
+
+      {!esEdicion && (
+        <div className="mb-4">
+          <label className="block text-[11px] font-mono uppercase text-steel mb-1.5">
+            Corte por orden del banco (opcional, hora UTC)
+          </label>
+          <input
+            type="datetime-local"
+            step="1"
+            value={inicioBanco}
+            onChange={(e) => setInicioBanco(e.target.value)}
+            className="w-full px-3.5 py-2.5 border border-line rounded-lg text-[14px] font-mono outline-none focus:border-navy-800"
+          />
+          <p className="text-[12px] text-steel mt-1.5">
+            Los pagos posteriores a este momento (hora del banco) irán a este contenedor; los anteriores se
+            quedan en el contenedor anterior. Por defecto es el último pago recibido hasta ahora, así que
+            sincroniza Sabadell y Revolut antes de crear el contenedor. Vacío = funcionamiento clásico por fecha.
+          </p>
+        </div>
+      )}
 
       <div className="grid grid-cols-2 gap-3 mb-4">
         <div>

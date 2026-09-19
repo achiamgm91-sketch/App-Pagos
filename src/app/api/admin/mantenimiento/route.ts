@@ -63,5 +63,19 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ ok: true, rellenados });
   }
 
+  if (accion === "recalcular-horas") {
+    const filas = await prisma.$executeRawUnsafe(
+      `UPDATE "Pago" SET "fechaHoraBanco" = ((to_timestamp(substring("idOrigen" from 13 for 14), 'YYYYMMDDHH24MISS') AT TIME ZONE current_setting('TimeZone')) AT TIME ZONE 'Europe/Madrid') AT TIME ZONE 'UTC'
+       WHERE "idOrigen" ~ '^SABADELL-EB:[0-9]{14}'`
+    );
+    const muestra = await prisma.pago.findMany({
+      where: { idOrigen: { startsWith: "SABADELL-EB:" } },
+      select: { idOrigen: true, fechaHoraBanco: true },
+      orderBy: { creadoEn: "desc" },
+      take: 3,
+    });
+    return NextResponse.json({ ok: true, filas, muestra });
+  }
+
   return NextResponse.json({ error: "accion no reconocida" }, { status: 400 });
 }

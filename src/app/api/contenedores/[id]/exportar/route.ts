@@ -4,6 +4,7 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import * as XLSX from "xlsx";
 import { round2 } from "@/lib/format";
+import { ORDEN_BANCO_DESC, ORDEN_BANCO_ASC } from "@/lib/pagosBanco";
 
 export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
   const session = await getServerSession(authOptions);
@@ -15,7 +16,7 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
     where: { id: params.id },
     include: {
       pagos: {
-        orderBy: [{ fecha: "asc" }, { persona: "asc" }],
+        orderBy: ORDEN_BANCO_ASC,
         include: {
           cobrador: true,
           creadoPor: true,

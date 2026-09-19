@@ -7,6 +7,7 @@ import { esFicheroTipoCambioBDE, procesarTipoCambioBDE } from "@/lib/importers/t
 import { obtenerTasasOrdenadas, buscarTasaConFecha, recalcularPagosConTasaMejorable, guardarTasasCambio } from "@/lib/tipoCambio";
 import { registrarActividad } from "@/lib/actividad";
 import { filtrarPagosNuevos } from "@/lib/dedupPagos";
+import { cargarCadenaContenedores, elegirContenedor } from "@/lib/pagosBanco";
 import Papa from "papaparse";
 import * as XLSX from "xlsx";
 
@@ -108,15 +109,15 @@ export async function POST(req: NextRequest) {
     });
   }
 
-  const fechaInicioContenedor = fechaISO(contenedor.fechaInicio);
-  const dentroDeRango = detectados.filter((d) => d.fecha >= fechaInicioContenedor);
-  const anterioresAlInicio = detectados.length - dentroDeRango.length;
-
   const round2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
 
-  const nuevos = await filtrarPagosNuevos(
-    dentroDeRango.map((d) => ({ ...d, importe: round2(d.importe) }))
-  );
+  const cadena = await cargarCadenaContenedores();
+  const dentroDeRango = detectados
+    .map((d) => ({ ...d, importe: round2(d.importe), contenedorDestino: elegirContenedor(cadena, d) }))
+    .filter((d) => d.contenedorDestino);
+  const anterioresAlInicio = detectados.length - dentroDeRango.length;
+
+  const nuevos = await filtrarPagosNuevos(dentroDeRango);
   const duplicados = dentroDeRango.length - nuevos.length;
 
   const tasasOrdenadas = await obtenerTasasOrdenadas();
@@ -140,7 +141,7 @@ export async function POST(req: NextRequest) {
     if (encontrada === null) sinTasa++;
 
     pagosNuevos.push({
-      contenedorId: contenedor.id,
+      contenedorId: d.contenedorDestino!.id,
       fecha: new Date(d.fecha),
       persona: d.persona,
       importeEur,

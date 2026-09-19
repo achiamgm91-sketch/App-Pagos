@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import SignOutButton from "@/components/SignOutButton";
 import MisPagosLista from "@/components/MisPagosLista";
 import TabsCobrador from "@/components/TabsCobrador";
+import { ORDEN_BANCO_DESC, ORDEN_BANCO_ASC } from "@/lib/pagosBanco";
 
 export const dynamic = "force-dynamic";
 
@@ -27,7 +28,7 @@ export default async function MisPagosPage() {
   const misPagos = await prisma.pago.findMany({
     where: verTodosPagos ? { cobradorId: { not: null } } : { cobradorId },
     include: { contenedor: true, cobrador: true, cobradorAsignadoPor: true },
-    orderBy: { persona: "asc" },
+    orderBy: ORDEN_BANCO_DESC,
   });
 
   const pagos = misPagos.map((p) => {

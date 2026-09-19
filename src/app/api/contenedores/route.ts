@@ -14,10 +14,18 @@ export async function POST(req: NextRequest) {
   const usuarioId = (session.user as any).id as string;
 
   const body = await req.json();
-  const { nombre, codigo, saldoInicial, monedaSaldoInicial, fechaInicio, totalFactura, monedaTotalFactura, estado } = body;
+  const { nombre, codigo, saldoInicial, monedaSaldoInicial, fechaInicio, totalFactura, monedaTotalFactura, estado, inicioBanco } = body;
 
   if (!nombre || !fechaInicio || totalFactura === undefined || totalFactura === null) {
     return NextResponse.json({ error: "Faltan campos obligatorios" }, { status: 400 });
+  }
+
+  let inicioBancoDate: Date | null = null;
+  if (inicioBanco) {
+    inicioBancoDate = new Date(inicioBanco);
+    if (isNaN(inicioBancoDate.getTime())) {
+      return NextResponse.json({ error: "Fecha y hora de corte inválida" }, { status: 400 });
+    }
   }
 
   try {
@@ -28,6 +36,7 @@ export async function POST(req: NextRequest) {
         saldoInicial: saldoInicial ?? 0,
         monedaSaldoInicial: monedaSaldoInicial || "USD",
         fechaInicio: new Date(fechaInicio),
+        inicioBanco: inicioBancoDate,
         totalFactura,
         monedaTotalFactura: monedaTotalFactura || "USD",
         estado: estado || "ACTIVO",

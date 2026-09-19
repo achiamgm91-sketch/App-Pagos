@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
+import { ORDEN_BANCO_DESC, ORDEN_BANCO_ASC } from "@/lib/pagosBanco";
 
 export const PAGE_SIZE = 50;
 
@@ -82,7 +83,7 @@ export async function obtenerPagosFiltrados(filtros: FiltrosPagos, page: number)
     prisma.pago.findMany({
       where,
       include: includePago,
-      orderBy: { fecha: "desc" },
+      orderBy: ORDEN_BANCO_DESC,
       skip: (page - 1) * PAGE_SIZE,
       take: PAGE_SIZE,
     }),

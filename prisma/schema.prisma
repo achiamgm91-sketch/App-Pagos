@@ -75,6 +75,7 @@ model Contenedor {
   saldoInicial       Decimal          @default(0) @db.Decimal(12, 2)
   monedaSaldoInicial String           @default("USD")
   fechaInicio        DateTime
+  inicioBanco        DateTime? // si existe, solo pertenecen a este contenedor los pagos posteriores a este instante (orden del banco)
   totalFactura       Decimal          @db.Decimal(12, 2)
   monedaTotalFactura String           @default("USD")
   estado             EstadoContenedor @default(ACTIVO)
@@ -165,6 +166,7 @@ model Pago {
   monedaOriginal String     @default("EUR")
   banco        String      @default("Revolut")
   idOrigen     String?     @unique
+  fechaHoraBanco DateTime? // instante del pago según el banco; sirve para ordenar y para cortar entre contenedores
 
   cobradorAsignadoPorId String?
   cobradorAsignadoPor   Usuario?  @relation("PagoCobradorAsignadoPor", fields: [cobradorAsignadoPorId], references: [id])

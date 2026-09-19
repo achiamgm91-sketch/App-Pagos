@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import SignOutButton from "@/components/SignOutButton";
 import PendientesCobrador from "@/components/PendientesCobrador";
 import TabsCobrador from "@/components/TabsCobrador";
+import { ORDEN_BANCO_DESC, ORDEN_BANCO_ASC } from "@/lib/pagosBanco";
 
 export const dynamic = "force-dynamic";
 
@@ -25,7 +26,7 @@ export default async function PendientesPage() {
 
   const pendientesRaw = await prisma.pago.findMany({
     where: { cobradorId: null },
-    orderBy: { fecha: "desc" },
+    orderBy: ORDEN_BANCO_DESC,
   });
 
   const cobradores = await prisma.cobrador.findMany({ where: { activo: true } });

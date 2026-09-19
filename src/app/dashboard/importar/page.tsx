@@ -3,6 +3,7 @@ import { bancosSoportados } from "@/lib/importers";
 import { calcularFechaSugeridaRevolut } from "@/lib/revolut/sincronizar";
 import { calcularFechaSugeridaSabadell } from "@/lib/enableBanking/sincronizar";
 import ImportarClient from "@/components/ImportarClient";
+import { ORDEN_BANCO_DESC, ORDEN_BANCO_ASC } from "@/lib/pagosBanco";
 
 export const dynamic = "force-dynamic";
 
@@ -30,7 +31,7 @@ export default async function ImportarPage() {
     bancos.map(async (banco) => {
       const p = await prisma.pago.findFirst({
         where: { banco },
-        orderBy: [{ fecha: "desc" }, { creadoEn: "desc" }],
+        orderBy: ORDEN_BANCO_DESC,
       });
       return {
         banco,
