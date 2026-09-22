@@ -176,17 +176,22 @@ export type ResultadoRecuadre = {
   completo: boolean; // false = ni con todo el saldo del siguiente se alcanza el total; no se tocó nada
 };
 
+const PROFUNDIDAD_MAX_CADENA = 25; // salvaguarda; en la práctica la cadena real nunca llega a esto
+
 /**
  * Tras marcar o desmarcar una devolución, si el contenedor del pago dio lugar a un
  * corte automático hacia un contenedor siguiente, recalcula dónde debe caer ese
  * corte con el dinero contable actual (sin los pagos devueltos) y reparte los pagos
- * entre ambos contenedores. Si el contenedor no tiene un corte de este tipo (p.ej.
+ * entre ambos contenedores. Si ese contenedor siguiente, a su vez, ya había dado
+ * lugar a otro corte más adelante, se sigue recalculando en cadena hasta que un
+ * contenedor no tenga corte que recomponer (p.ej. es el activo, o se cerró a mano
+ * por fecha). Si el contenedor de partida no tiene un corte de este tipo (p.ej.
  * transición manual antigua por fecha), no hace nada: el dinero simplemente deja de
  * contar en el total de su contenedor.
  */
-export async function recuadrarPorDevolucion(pagoId: string): Promise<ResultadoRecuadre | null> {
+export async function recuadrarPorDevolucion(pagoId: string): Promise<ResultadoRecuadre[]> {
   const pagoRef = await prisma.pago.findUnique({ where: { id: pagoId } });
-  if (!pagoRef?.contenedorId) return null;
+  if (!pagoRef?.contenedorId) return [];
   return recuadrarContenedorConSiguiente(pagoRef.contenedorId);
 }
 
@@ -194,24 +199,26 @@ export async function recuadrarPorDevolucion(pagoId: string): Promise<ResultadoR
  * Igual que recuadrarPorDevolucion, pero a partir del contenedor directamente (no de
  * un pago concreto). Se usa para seguir la cadena cuando un contenedor cambia de
  * dinero disponible (p.ej. le ajustamos el saldo inicial) y él mismo ya había dado
- * lugar a otro corte más adelante.
+ * lugar a otro corte más adelante. Devuelve un paso por cada corte recalculado, en
+ * orden; una vez que un contenedor no tiene corte que recomponer, la cadena se para.
  */
-export async function recuadrarContenedorConSiguiente(contenedorId: string): Promise<ResultadoRecuadre | null> {
+export async function recuadrarContenedorConSiguiente(
+  contenedorId: string,
+  profundidad = 0
+): Promise<ResultadoRecuadre[]> {
+  if (profundidad >= PROFUNDIDAD_MAX_CADENA) return [];
+
   const contenedor = await prisma.contenedor.findUnique({ where: { id: contenedorId } });
-  if (!contenedor) return null;
+  if (!contenedor) return [];
 
   const ajuste = await prisma.pago.findFirst({ where: { contenedorId: contenedor.id, banco: BANCO_AJUSTE } });
-  if (!ajuste?.idOrigen?.startsWith("AJUSTE:")) return null; // este contenedor no originó un corte: nada que recuadrar
+  if (!ajuste?.idOrigen?.startsWith("AJUSTE:")) return []; // este contenedor no originó un corte: nada que recuadrar
 
   const pagoCrucePrevio = await prisma.pago.findUnique({ where: { id: ajuste.idOrigen.slice("AJUSTE:".length) } });
-  if (!pagoCrucePrevio?.fechaHoraBanco) return null;
+  if (!pagoCrucePrevio?.fechaHoraBanco) return [];
 
   const siguiente = await prisma.contenedor.findFirst({ where: { inicioBanco: pagoCrucePrevio.fechaHoraBanco } });
-  if (!siguiente) return null;
-
-  // Seguridad: si el siguiente ya dio lugar a otro corte, no reescribimos varios niveles de la cadena.
-  const ajusteSiguiente = await prisma.pago.findFirst({ where: { contenedorId: siguiente.id, banco: BANCO_AJUSTE } });
-  if (ajusteSiguiente) return null;
+  if (!siguiente) return [];
 
   const moneda = contenedor.monedaTotalFactura === "EUR" ? "EUR" : "USD";
   const importeDe = (p: { importeEur: unknown; importeUsd: unknown }) => {
@@ -228,7 +235,7 @@ export async function recuadrarContenedorConSiguiente(contenedorId: string): Pro
   let saldo = Number(contenedor.saldoInicial);
   if (contenedor.monedaSaldoInicial !== moneda && saldo !== 0) {
     const tasaRow = await prisma.tipoCambioDia.findFirst({ orderBy: { fecha: "desc" } });
-    if (!tasaRow) return null;
+    if (!tasaRow) return [];
     const tasa = Number(tasaRow.usdPorEur);
     saldo = moneda === "EUR" ? saldo / tasa : saldo * tasa;
   }
@@ -238,7 +245,7 @@ export async function recuadrarContenedorConSiguiente(contenedorId: string): Pro
     poolContable.map((p) => ({ id: p.id, importe: importeDe(p) })),
     objetivo
   );
-  if (!cruce) return { contenedor: contenedor.nombre, siguiente: siguiente.nombre, completo: false };
+  if (!cruce) return [{ contenedor: contenedor.nombre, siguiente: siguiente.nombre, completo: false }];
 
   const pagoCruce = poolContable[cruce.indice];
   const idxEnPool = pool.findIndex((p) => p.id === pagoCruce.id);
@@ -281,7 +288,9 @@ export async function recuadrarContenedorConSiguiente(contenedorId: string): Pro
     }
   });
 
-  return { contenedor: contenedor.nombre, siguiente: siguiente.nombre, completo: true };
+  const pasoActual: ResultadoRecuadre = { contenedor: contenedor.nombre, siguiente: siguiente.nombre, completo: true };
+  const pasosSiguientes = await recuadrarContenedorConSiguiente(siguiente.id, profundidad + 1);
+  return [pasoActual, ...pasosSiguientes];
 }
 
 export type ResultadoAjusteSaldo = {

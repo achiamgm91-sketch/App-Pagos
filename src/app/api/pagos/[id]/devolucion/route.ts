@@ -40,28 +40,32 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     },
   });
 
-  const recuadre = await recuadrarPorDevolucion(params.id);
-  const ajusteSaldo = recuadre ? null : await ajustarSaldoInicialSiguiente(params.id, nuevoEstado ? 1 : -1);
-  // Si el contenedor al que le ajustamos el saldo inicial ya había dado lugar a su
-  // propio corte más adelante, ese corte también hay que recalcularlo (en cadena).
-  const recuadreEncadenado = ajusteSaldo ? await recuadrarContenedorConSiguiente(ajusteSaldo.siguienteId) : null;
-  if (!nuevoEstado && !recuadre) {
+  // Encadena todos los cortes automáticos afectados, empezando por el contenedor
+  // del propio pago. Si ese contenedor no tiene corte, se resta/suma del saldo
+  // inicial del siguiente contenedor (transición manual por fecha) y, a partir de
+  // ahí, se sigue encadenando por si ese siguiente ya tenía su propio corte.
+  let pasos = await recuadrarPorDevolucion(params.id);
+  const ajusteSaldo = pasos.length === 0 ? await ajustarSaldoInicialSiguiente(params.id, nuevoEstado ? 1 : -1) : null;
+  if (ajusteSaldo) {
+    pasos = await recuadrarContenedorConSiguiente(ajusteSaldo.siguienteId);
+  }
+  if (!nuevoEstado && pasos.length === 0 && !ajusteSaldo) {
     // Al deshacer una devolución en el contenedor activo, puede que ahora sí alcance su total.
     await cerrarContenedorSiCompleto().catch(() => null);
   }
 
-  const detalleRecuadre = recuadre
-    ? recuadre.completo
-      ? ` — recuadrado con "${recuadre.siguiente}"`
-      : ` — no se pudo recuadrar del todo con "${recuadre.siguiente}", revisar a mano`
-    : ajusteSaldo
-    ? ` — se ${ajusteSaldo.ajuste < 0 ? "restó" : "sumó"} ${Math.abs(ajusteSaldo.ajuste)} ${ajusteSaldo.moneda} al saldo inicial de "${ajusteSaldo.siguiente}"` +
-      (recuadreEncadenado
-        ? recuadreEncadenado.completo
-          ? ` — y se recuadró en cadena con "${recuadreEncadenado.siguiente}"`
-          : ` — no se pudo recuadrar del todo en cadena con "${recuadreEncadenado.siguiente}", revisar a mano`
-        : "")
+  const incompleto = pasos.find((p) => !p.completo);
+  const detalleCadena = ajusteSaldo
+    ? ` se ${ajusteSaldo.ajuste < 0 ? "restó" : "sumó"} ${Math.abs(ajusteSaldo.ajuste)} ${ajusteSaldo.moneda} al saldo inicial de "${ajusteSaldo.siguiente}".`
     : "";
+  const detalleRecuadre =
+    pasos.length === 0 && !ajusteSaldo
+      ? ""
+      : ` —${detalleCadena}${
+          pasos.length > 0
+            ? ` recuadrado en cadena por: ${pasos.map((p) => `${p.contenedor} → ${p.siguiente}`).join(", ")}.`
+            : ""
+        }${incompleto ? ` OJO: no se pudo recuadrar del todo entre "${incompleto.contenedor}" y "${incompleto.siguiente}", revisar a mano.` : ""}`;
 
   await registrarActividad({
     usuarioId,
@@ -71,5 +75,5 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     detalle: `${pago.persona} (${pago.fecha.toISOString().slice(0, 10)})${detalleRecuadre}`,
   });
 
-  return NextResponse.json({ pago: actualizado, recuadre, ajusteSaldo, recuadreEncadenado });
+  return NextResponse.json({ pago: actualizado, pasos, ajusteSaldo });
 }

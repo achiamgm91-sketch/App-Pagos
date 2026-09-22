@@ -27,9 +27,10 @@ export default function DevolverPago({
       const res = await fetch(`/api/pagos/${pagoId}/devolucion`, { method: "POST" });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || "No se pudo registrar la devolución");
-      if (data.recuadre && !data.recuadre.completo) {
+      const incompleto = (data.pasos || []).find((p: any) => !p.completo);
+      if (incompleto) {
         alert(
-          `Ojo: no se pudo recuadrar del todo entre "${data.recuadre.contenedor}" y "${data.recuadre.siguiente}". Revísalo a mano.`
+          `Ojo: no se pudo recuadrar del todo entre "${incompleto.contenedor}" y "${incompleto.siguiente}". Revísalo a mano.`
         );
       }
       router.refresh();
