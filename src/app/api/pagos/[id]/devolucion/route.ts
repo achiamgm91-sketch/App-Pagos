@@ -3,7 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { registrarActividad } from "@/lib/actividad";
-import { recuadrarPorDevolucion, cerrarContenedorSiCompleto } from "@/lib/cierreAutomatico";
+import { recuadrarPorDevolucion, ajustarSaldoInicialSiguiente, cerrarContenedorSiCompleto } from "@/lib/cierreAutomatico";
 
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
   const session = await getServerSession(authOptions);
@@ -35,21 +35,28 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     },
   });
 
-  let recuadre = await recuadrarPorDevolucion(params.id);
+  const recuadre = await recuadrarPorDevolucion(params.id);
+  const ajusteSaldo = recuadre ? null : await ajustarSaldoInicialSiguiente(params.id, nuevoEstado ? 1 : -1);
   if (!nuevoEstado && !recuadre) {
     // Al deshacer una devolución en el contenedor activo, puede que ahora sí alcance su total.
     await cerrarContenedorSiCompleto().catch(() => null);
   }
+
+  const detalleRecuadre = recuadre
+    ? recuadre.completo
+      ? ` — recuadrado con "${recuadre.siguiente}"`
+      : ` — no se pudo recuadrar del todo con "${recuadre.siguiente}", revisar a mano`
+    : ajusteSaldo
+    ? ` — se ${ajusteSaldo.ajuste < 0 ? "restó" : "sumó"} ${Math.abs(ajusteSaldo.ajuste)} ${ajusteSaldo.moneda} al saldo inicial de "${ajusteSaldo.siguiente}"`
+    : "";
 
   await registrarActividad({
     usuarioId,
     accion: nuevoEstado ? "devolver_pago" : "deshacer_devolucion_pago",
     entidad: "Pago",
     entidadId: pago.id,
-    detalle: `${pago.persona} (${pago.fecha.toISOString().slice(0, 10)})${
-      recuadre ? (recuadre.completo ? ` — recuadrado con "${recuadre.siguiente}"` : ` — no se pudo recuadrar del todo con "${recuadre.siguiente}", revisar a mano`) : ""
-    }`,
+    detalle: `${pago.persona} (${pago.fecha.toISOString().slice(0, 10)})${detalleRecuadre}`,
   });
 
-  return NextResponse.json({ pago: actualizado, recuadre });
+  return NextResponse.json({ pago: actualizado, recuadre, ajusteSaldo });
 }

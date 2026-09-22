@@ -274,3 +274,43 @@ export async function recuadrarPorDevolucion(pagoId: string): Promise<ResultadoR
 
   return { contenedor: contenedor.nombre, siguiente: siguiente.nombre, completo: true };
 }
+
+export type ResultadoAjusteSaldo = {
+  siguiente: string;
+  ajuste: number; // negativo = se restó de su saldo inicial, positivo = se sumó (al deshacer)
+  moneda: string;
+};
+
+/**
+ * Para contenedores SIN corte automático (transiciones antiguas por fecha, sin
+ * inicioBanco): al marcar o deshacer una devolución, resta o suma el importe del
+ * pago (en la moneda del saldo inicial del contenedor siguiente) directamente al
+ * saldo inicial de ese contenedor siguiente. Así se recuadra sin mover pagos.
+ */
+export async function ajustarSaldoInicialSiguiente(pagoId: string, signo: 1 | -1): Promise<ResultadoAjusteSaldo | null> {
+  const pago = await prisma.pago.findUnique({ where: { id: pagoId } });
+  if (!pago?.contenedorId) return null;
+
+  const contenedor = await prisma.contenedor.findUnique({ where: { id: pago.contenedorId } });
+  if (!contenedor) return null;
+
+  const siguiente = await prisma.contenedor.findFirst({
+    where: { fechaInicio: { gt: contenedor.fechaInicio } },
+    orderBy: { fechaInicio: "asc" },
+  });
+  if (!siguiente) return null;
+
+  const importe = siguiente.monedaSaldoInicial === "EUR" ? pago.importeEur : pago.importeUsd;
+  if (importe === null) return null;
+
+  const delta = -signo * Number(importe);
+  const nuevoSaldo = round2(Number(siguiente.saldoInicial) + delta);
+
+  const usuarioSistema = await obtenerOcrearUsuarioCron();
+  await prisma.contenedor.update({
+    where: { id: siguiente.id },
+    data: { saldoInicial: nuevoSaldo, actualizadoPorId: usuarioSistema.id },
+  });
+
+  return { siguiente: siguiente.nombre, ajuste: round2(delta), moneda: siguiente.monedaSaldoInicial };
+}
