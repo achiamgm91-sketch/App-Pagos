@@ -6,6 +6,18 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "No autorizado" }, { status: 401 });
   }
 
+  if (req.nextUrl.searchParams.get("accion") === "migrar-devolucion") {
+    await prisma.$executeRawUnsafe(`ALTER TABLE "Pago" ADD COLUMN IF NOT EXISTS "devuelto" BOOLEAN NOT NULL DEFAULT false`);
+    await prisma.$executeRawUnsafe(`ALTER TABLE "Pago" ADD COLUMN IF NOT EXISTS "devueltoEn" TIMESTAMP(3)`);
+    await prisma.$executeRawUnsafe(`ALTER TABLE "Pago" ADD COLUMN IF NOT EXISTS "devueltoPorId" TEXT`);
+    await prisma.$executeRawUnsafe(
+      `DO $$ BEGIN
+         ALTER TABLE "Pago" ADD CONSTRAINT "Pago_devueltoPorId_fkey" FOREIGN KEY ("devueltoPorId") REFERENCES "Usuario"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+       EXCEPTION WHEN duplicate_object THEN NULL; END $$;`
+    );
+    return NextResponse.json({ ok: true });
+  }
+
   const contenedores = await prisma.contenedor.findMany({
     orderBy: [{ fechaInicio: "asc" }],
     select: {
