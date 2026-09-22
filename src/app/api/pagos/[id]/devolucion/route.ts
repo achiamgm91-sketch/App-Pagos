@@ -77,3 +77,31 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
 
   return NextResponse.json({ pago: actualizado, pasos, ajusteSaldo });
 }
+
+export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
+  const session = await getServerSession(authOptions);
+  if (!session) {
+    return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+  }
+  if ((session.user as any).rol !== "SUPERADMIN") {
+    return NextResponse.json({ error: "Solo un superadministrador puede editar la nota" }, { status: 403 });
+  }
+
+  const pago = await prisma.pago.findUnique({ where: { id: params.id } });
+  if (!pago) {
+    return NextResponse.json({ error: "Pago no encontrado" }, { status: 404 });
+  }
+  if (!pago.devuelto) {
+    return NextResponse.json({ error: "Este pago no está marcado como devuelto" }, { status: 400 });
+  }
+
+  const body = await req.json();
+  const nota = typeof body.nota === "string" ? body.nota.trim().slice(0, 500) : "";
+
+  const actualizado = await prisma.pago.update({
+    where: { id: params.id },
+    data: { devueltoNota: nota || null, actualizadoPorId: (session.user as any).id },
+  });
+
+  return NextResponse.json({ pago: actualizado });
+}

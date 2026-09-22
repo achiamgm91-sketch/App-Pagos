@@ -18,7 +18,10 @@ export async function middleware(req: NextRequest) {
     return NextResponse.redirect(new URL("/mi/pendientes", req.url));
   }
 
-  if (pathname.startsWith("/dashboard/actividad") && token.rol !== "SUPERADMIN") {
+  if (
+    (pathname.startsWith("/dashboard/actividad") || pathname.startsWith("/dashboard/devoluciones")) &&
+    token.rol !== "SUPERADMIN"
+  ) {
     return NextResponse.redirect(new URL("/dashboard", req.url));
   }
 

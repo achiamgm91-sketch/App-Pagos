@@ -173,6 +173,7 @@ model Pago {
   devueltoEn     DateTime?
   devueltoPorId  String?
   devueltoPor    Usuario?  @relation("PagoDevueltoPor", fields: [devueltoPorId], references: [id])
+  devueltoNota   String?   // motivo de la devolución, lo escribe el superadministrador
 
   cobradorAsignadoPorId String?
   cobradorAsignadoPor   Usuario?  @relation("PagoCobradorAsignadoPor", fields: [cobradorAsignadoPorId], references: [id])

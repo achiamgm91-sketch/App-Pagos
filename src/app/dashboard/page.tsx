@@ -150,12 +150,20 @@ export default async function DashboardPage({
           <span>📈</span> Estadísticas
         </Link>
         {(session?.user as any)?.rol === "SUPERADMIN" && (
-          <Link
-            href="/dashboard/actividad"
-            className="flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-steel-light text-[13.5px] font-medium hover:bg-white/5"
-          >
-            <span>🕵️</span> Supervisión
-          </Link>
+          <>
+            <Link
+              href="/dashboard/actividad"
+              className="flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-steel-light text-[13.5px] font-medium hover:bg-white/5"
+            >
+              <span>🕵️</span> Supervisión
+            </Link>
+            <Link
+              href="/dashboard/devoluciones"
+              className="flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-steel-light text-[13.5px] font-medium hover:bg-white/5"
+            >
+              <span>↩️</span> Devoluciones
+            </Link>
+          </>
         )}
       </div>
 

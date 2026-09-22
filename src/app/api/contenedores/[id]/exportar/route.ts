@@ -74,6 +74,7 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
     "Cobrador asignado por",
     "Cobrador asignado en",
     "Devuelto",
+    "Motivo devolución",
   ];
 
   const nombreUsuario = (u: { nombre: string | null; usuario: string } | null) =>
@@ -100,6 +101,7 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
       p.cobradorAsignadoPor ? nombreUsuario(p.cobradorAsignadoPor) : "—",
       p.cobradorAsignadoEn ? p.cobradorAsignadoEn.toLocaleString("es-ES") : "—",
       p.devuelto ? `Sí (${p.devueltoEn ? p.devueltoEn.toLocaleDateString("es-ES") : ""})` : "",
+      p.devueltoNota ?? "",
     ];
   });
 
@@ -112,7 +114,7 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
   wsPagos["!cols"] = [
     { wch: 26 }, { wch: 22 }, { wch: 11 }, { wch: 28 }, { wch: 10 }, { wch: 18 },
     { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 14 }, { wch: 14 }, { wch: 24 },
-    { wch: 16 }, { wch: 18 }, { wch: 16 }, { wch: 18 }, { wch: 18 }, { wch: 18 }, { wch: 16 },
+    { wch: 16 }, { wch: 18 }, { wch: 16 }, { wch: 18 }, { wch: 18 }, { wch: 18 }, { wch: 16 }, { wch: 28 },
   ];
 
   for (let fila = 1; fila <= filas.length; fila++) {
