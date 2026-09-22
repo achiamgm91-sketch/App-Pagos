@@ -187,8 +187,17 @@ export type ResultadoRecuadre = {
 export async function recuadrarPorDevolucion(pagoId: string): Promise<ResultadoRecuadre | null> {
   const pagoRef = await prisma.pago.findUnique({ where: { id: pagoId } });
   if (!pagoRef?.contenedorId) return null;
+  return recuadrarContenedorConSiguiente(pagoRef.contenedorId);
+}
 
-  const contenedor = await prisma.contenedor.findUnique({ where: { id: pagoRef.contenedorId } });
+/**
+ * Igual que recuadrarPorDevolucion, pero a partir del contenedor directamente (no de
+ * un pago concreto). Se usa para seguir la cadena cuando un contenedor cambia de
+ * dinero disponible (p.ej. le ajustamos el saldo inicial) y él mismo ya había dado
+ * lugar a otro corte más adelante.
+ */
+export async function recuadrarContenedorConSiguiente(contenedorId: string): Promise<ResultadoRecuadre | null> {
+  const contenedor = await prisma.contenedor.findUnique({ where: { id: contenedorId } });
   if (!contenedor) return null;
 
   const ajuste = await prisma.pago.findFirst({ where: { contenedorId: contenedor.id, banco: BANCO_AJUSTE } });
@@ -276,6 +285,7 @@ export async function recuadrarPorDevolucion(pagoId: string): Promise<ResultadoR
 }
 
 export type ResultadoAjusteSaldo = {
+  siguienteId: string;
   siguiente: string;
   ajuste: number; // negativo = se restó de su saldo inicial, positivo = se sumó (al deshacer)
   moneda: string;
@@ -296,7 +306,7 @@ export async function ajustarSaldoInicialSiguiente(pagoId: string, signo: 1 | -1
 
   const siguiente = await prisma.contenedor.findFirst({
     where: { fechaInicio: { gt: contenedor.fechaInicio } },
-    orderBy: { fechaInicio: "asc" },
+    orderBy: [{ fechaInicio: "asc" }, { creadoEn: "asc" }],
   });
   if (!siguiente) return null;
 
@@ -312,5 +322,5 @@ export async function ajustarSaldoInicialSiguiente(pagoId: string, signo: 1 | -1
     data: { saldoInicial: nuevoSaldo, actualizadoPorId: usuarioSistema.id },
   });
 
-  return { siguiente: siguiente.nombre, ajuste: round2(delta), moneda: siguiente.monedaSaldoInicial };
+  return { siguienteId: siguiente.id, siguiente: siguiente.nombre, ajuste: round2(delta), moneda: siguiente.monedaSaldoInicial };
 }

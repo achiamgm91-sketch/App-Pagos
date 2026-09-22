@@ -3,7 +3,12 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { registrarActividad } from "@/lib/actividad";
-import { recuadrarPorDevolucion, ajustarSaldoInicialSiguiente, cerrarContenedorSiCompleto } from "@/lib/cierreAutomatico";
+import {
+  recuadrarPorDevolucion,
+  recuadrarContenedorConSiguiente,
+  ajustarSaldoInicialSiguiente,
+  cerrarContenedorSiCompleto,
+} from "@/lib/cierreAutomatico";
 
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
   const session = await getServerSession(authOptions);
@@ -37,6 +42,9 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
 
   const recuadre = await recuadrarPorDevolucion(params.id);
   const ajusteSaldo = recuadre ? null : await ajustarSaldoInicialSiguiente(params.id, nuevoEstado ? 1 : -1);
+  // Si el contenedor al que le ajustamos el saldo inicial ya había dado lugar a su
+  // propio corte más adelante, ese corte también hay que recalcularlo (en cadena).
+  const recuadreEncadenado = ajusteSaldo ? await recuadrarContenedorConSiguiente(ajusteSaldo.siguienteId) : null;
   if (!nuevoEstado && !recuadre) {
     // Al deshacer una devolución en el contenedor activo, puede que ahora sí alcance su total.
     await cerrarContenedorSiCompleto().catch(() => null);
@@ -47,7 +55,12 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       ? ` — recuadrado con "${recuadre.siguiente}"`
       : ` — no se pudo recuadrar del todo con "${recuadre.siguiente}", revisar a mano`
     : ajusteSaldo
-    ? ` — se ${ajusteSaldo.ajuste < 0 ? "restó" : "sumó"} ${Math.abs(ajusteSaldo.ajuste)} ${ajusteSaldo.moneda} al saldo inicial de "${ajusteSaldo.siguiente}"`
+    ? ` — se ${ajusteSaldo.ajuste < 0 ? "restó" : "sumó"} ${Math.abs(ajusteSaldo.ajuste)} ${ajusteSaldo.moneda} al saldo inicial de "${ajusteSaldo.siguiente}"` +
+      (recuadreEncadenado
+        ? recuadreEncadenado.completo
+          ? ` — y se recuadró en cadena con "${recuadreEncadenado.siguiente}"`
+          : ` — no se pudo recuadrar del todo en cadena con "${recuadreEncadenado.siguiente}", revisar a mano`
+        : "")
     : "";
 
   await registrarActividad({
@@ -58,5 +71,5 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     detalle: `${pago.persona} (${pago.fecha.toISOString().slice(0, 10)})${detalleRecuadre}`,
   });
 
-  return NextResponse.json({ pago: actualizado, recuadre, ajusteSaldo });
+  return NextResponse.json({ pago: actualizado, recuadre, ajusteSaldo, recuadreEncadenado });
 }
