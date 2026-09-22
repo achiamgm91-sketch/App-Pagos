@@ -52,7 +52,7 @@ export default async function ContenedoresPage() {
           const totalFactura = Number(c.totalFactura);
           const recibido = round2(
             saldoInicial +
-              c.pagos.reduce((sum, p) => sum + (p.importeUsd !== null ? Number(p.importeUsd) : 0), 0)
+              c.pagos.filter((p) => !p.devuelto).reduce((sum, p) => sum + (p.importeUsd !== null ? Number(p.importeUsd) : 0), 0)
           );
           const pct = totalFactura > 0 ? Math.min(Math.round((recibido / totalFactura) * 100), 100) : 0;
 

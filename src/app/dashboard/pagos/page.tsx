@@ -1,5 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import Link from "next/link";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
 import ListaPagosFecha from "@/components/ListaPagosFecha";
 import { obtenerPagosFiltrados, simplificarPago } from "@/lib/pagosQuery";
 
@@ -25,6 +27,9 @@ export default async function PagosPorFechaPage({
     monto: searchParams.monto || "",
     moneda: (searchParams.moneda as "EUR" | "USD") || "EUR",
   };
+
+  const session = await getServerSession(authOptions);
+  const esSuperAdmin = (session?.user as any)?.rol === "SUPERADMIN";
 
   const resultado = await obtenerPagosFiltrados(filtros, 1);
   const pagosSimplificados = resultado.pagos.map(simplificarPago);
@@ -61,6 +66,7 @@ export default async function PagosPorFechaPage({
           filtrosIniciales={filtros}
           contenedores={contenedores}
           cobradores={cobradores}
+          esSuperAdmin={esSuperAdmin}
         />
       </main>
     </div>

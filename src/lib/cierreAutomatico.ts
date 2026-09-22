@@ -70,6 +70,7 @@ export async function cerrarContenedorSiCompleto(): Promise<ResultadoCierre | nu
     orderBy: ORDEN_BANCO_ASC,
   });
   if (pagos.some((p) => p.banco === BANCO_AJUSTE)) return null; // ya se procesó antes
+  const pagosContables = pagos.filter((p) => !p.devuelto);
 
   let saldo = Number(activo.saldoInicial);
   if (activo.monedaSaldoInicial !== moneda && saldo !== 0) {
@@ -81,12 +82,12 @@ export async function cerrarContenedorSiCompleto(): Promise<ResultadoCierre | nu
   const objetivo = round2(total - saldo);
 
   const cruce = calcularCruce(
-    pagos.map((p) => ({ id: p.id, importe: importeDe(p) })),
+    pagosContables.map((p) => ({ id: p.id, importe: importeDe(p) })),
     objetivo
   );
   if (!cruce) return null;
 
-  const pagoCruce = pagos[cruce.indice];
+  const pagoCruce = pagosContables[cruce.indice];
   const limite = new Date();
   limite.setDate(limite.getDate() - DIAS_MAX_CRUCE);
   if (pagoCruce.fecha < limite) return null; // cruce antiguo: no reordenar histórico
@@ -167,4 +168,109 @@ export async function procesarTrasImportar(): Promise<ResultadoCierre | null> {
     console.error("Error en el cierre automático de contenedor:", e);
     return null;
   }
+}
+
+export type ResultadoRecuadre = {
+  contenedor: string;
+  siguiente: string;
+  completo: boolean; // false = ni con todo el saldo del siguiente se alcanza el total; no se tocó nada
+};
+
+/**
+ * Tras marcar o desmarcar una devolución, si el contenedor del pago dio lugar a un
+ * corte automático hacia un contenedor siguiente, recalcula dónde debe caer ese
+ * corte con el dinero contable actual (sin los pagos devueltos) y reparte los pagos
+ * entre ambos contenedores. Si el contenedor no tiene un corte de este tipo (p.ej.
+ * transición manual antigua por fecha), no hace nada: el dinero simplemente deja de
+ * contar en el total de su contenedor.
+ */
+export async function recuadrarPorDevolucion(pagoId: string): Promise<ResultadoRecuadre | null> {
+  const pagoRef = await prisma.pago.findUnique({ where: { id: pagoId } });
+  if (!pagoRef?.contenedorId) return null;
+
+  const contenedor = await prisma.contenedor.findUnique({ where: { id: pagoRef.contenedorId } });
+  if (!contenedor) return null;
+
+  const ajuste = await prisma.pago.findFirst({ where: { contenedorId: contenedor.id, banco: BANCO_AJUSTE } });
+  if (!ajuste?.idOrigen?.startsWith("AJUSTE:")) return null; // este contenedor no originó un corte: nada que recuadrar
+
+  const pagoCrucePrevio = await prisma.pago.findUnique({ where: { id: ajuste.idOrigen.slice("AJUSTE:".length) } });
+  if (!pagoCrucePrevio?.fechaHoraBanco) return null;
+
+  const siguiente = await prisma.contenedor.findFirst({ where: { inicioBanco: pagoCrucePrevio.fechaHoraBanco } });
+  if (!siguiente) return null;
+
+  // Seguridad: si el siguiente ya dio lugar a otro corte, no reescribimos varios niveles de la cadena.
+  const ajusteSiguiente = await prisma.pago.findFirst({ where: { contenedorId: siguiente.id, banco: BANCO_AJUSTE } });
+  if (ajusteSiguiente) return null;
+
+  const moneda = contenedor.monedaTotalFactura === "EUR" ? "EUR" : "USD";
+  const importeDe = (p: { importeEur: unknown; importeUsd: unknown }) => {
+    const v = moneda === "EUR" ? p.importeEur : p.importeUsd;
+    return v === null || v === undefined ? null : Number(v);
+  };
+
+  const pool = await prisma.pago.findMany({
+    where: { contenedorId: { in: [contenedor.id, siguiente.id] }, banco: { not: BANCO_AJUSTE } },
+    orderBy: ORDEN_BANCO_ASC,
+  });
+  const poolContable = pool.filter((p) => !p.devuelto);
+
+  let saldo = Number(contenedor.saldoInicial);
+  if (contenedor.monedaSaldoInicial !== moneda && saldo !== 0) {
+    const tasaRow = await prisma.tipoCambioDia.findFirst({ orderBy: { fecha: "desc" } });
+    if (!tasaRow) return null;
+    const tasa = Number(tasaRow.usdPorEur);
+    saldo = moneda === "EUR" ? saldo / tasa : saldo * tasa;
+  }
+  const objetivo = round2(Number(contenedor.totalFactura) - saldo);
+
+  const cruce = calcularCruce(
+    poolContable.map((p) => ({ id: p.id, importe: importeDe(p) })),
+    objetivo
+  );
+  if (!cruce) return { contenedor: contenedor.nombre, siguiente: siguiente.nombre, completo: false };
+
+  const pagoCruce = poolContable[cruce.indice];
+  const idxEnPool = pool.findIndex((p) => p.id === pagoCruce.id);
+  const idsPosteriores = pool.slice(idxEnPool + 1).map((p) => p.id);
+  const usuarioSistema = await obtenerOcrearUsuarioCron();
+
+  await prisma.$transaction(async (tx) => {
+    await tx.pago.delete({ where: { id: ajuste.id } });
+    await tx.pago.updateMany({ where: { id: { in: pool.map((p) => p.id) } }, data: { contenedorId: contenedor.id } });
+    if (idsPosteriores.length > 0) {
+      await tx.pago.updateMany({ where: { id: { in: idsPosteriores } }, data: { contenedorId: siguiente.id } });
+    }
+    await tx.contenedor.update({
+      where: { id: siguiente.id },
+      data: { inicioBanco: pagoCruce.fechaHoraBanco, saldoInicial: cruce.excedente, monedaSaldoInicial: moneda },
+    });
+
+    if (cruce.excedente > 0) {
+      const otraMoneda = moneda === "EUR" ? "importeUsd" : "importeEur";
+      const importeCruce = importeDe(pagoCruce) as number;
+      const otro = pagoCruce[otraMoneda] !== null ? Number(pagoCruce[otraMoneda]) : null;
+      const fraccion = cruce.excedente / importeCruce;
+      await tx.pago.create({
+        data: {
+          contenedorId: contenedor.id,
+          fecha: pagoCruce.fecha,
+          persona: "Pasa al siguiente contenedor",
+          importeEur: moneda === "EUR" ? -cruce.excedente : otro !== null ? -round2(otro * fraccion) : null,
+          importeUsd: moneda === "USD" ? -cruce.excedente : otro !== null ? -round2(otro * fraccion) : null,
+          tasaCambio: pagoCruce.tasaCambio,
+          fechaTasaCambio: pagoCruce.fechaTasaCambio,
+          monedaOriginal: pagoCruce.monedaOriginal,
+          banco: BANCO_AJUSTE,
+          idOrigen: `AJUSTE:${pagoCruce.id}`,
+          fechaHoraBanco: pagoCruce.fechaHoraBanco ? new Date(pagoCruce.fechaHoraBanco.getTime() - 1) : null,
+          creadoPorId: usuarioSistema.id,
+          actualizadoPorId: usuarioSistema.id,
+        },
+      });
+    }
+  });
+
+  return { contenedor: contenedor.nombre, siguiente: siguiente.nombre, completo: true };
 }

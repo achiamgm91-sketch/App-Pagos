@@ -77,7 +77,7 @@ export default async function DashboardPage({
   const totalFactura = Number(contenedor.totalFactura);
   const monedaTotalFactura = contenedor.monedaTotalFactura;
 
-  const pagosDelContenedor = contenedor.pagos.filter((p) => p.importeUsd !== null);
+  const pagosDelContenedor = contenedor.pagos.filter((p) => p.importeUsd !== null && !p.devuelto);
   const pagosSinConversion = contenedor.pagos.filter((p) => p.importeUsd === null);
   const sumaPagos = round2(pagosDelContenedor.reduce((sum, p) => sum + Number(p.importeUsd), 0));
   const recibido = sumaPagos; // solo la suma de pagos, sin el saldo inicial
@@ -86,7 +86,7 @@ export default async function DashboardPage({
   const excedente = round2(Math.max(totalConSaldoInicial - totalFactura, 0));
   const pct = totalFactura > 0 ? Math.min(Math.round((totalConSaldoInicial / totalFactura) * 100), 100) : 0;
 
-  const pendientes = contenedor.pagos.filter((p) => !p.cobradorId && p.banco !== "Ajuste");
+  const pendientes = contenedor.pagos.filter((p) => !p.cobradorId && p.banco !== "Ajuste" && !p.devuelto);
 
   const objetivoPorCobrador = cobradores.length > 0 ? round2(totalFactura / cobradores.length) : 0;
   const desglose = cobradores.map((c) => {

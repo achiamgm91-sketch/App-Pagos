@@ -47,6 +47,7 @@ model Usuario {
   pagosCreados      Pago[]              @relation("PagoCreadoPor")
   pagosActualizados Pago[]              @relation("PagoActualizadoPor")
   pagosCobradorAsignados Pago[]         @relation("PagoCobradorAsignadoPor")
+  pagosDevueltos         Pago[]         @relation("PagoDevueltoPor")
   tiposCambioCreados      TipoCambioDia[] @relation("TipoCambioCreadoPor")
   tiposCambioActualizados TipoCambioDia[] @relation("TipoCambioActualizadoPor")
   cronEjecuciones CronEjecucion[] @relation("CronEjecucionUsuario")
@@ -167,6 +168,11 @@ model Pago {
   banco        String      @default("Revolut")
   idOrigen     String?     @unique
   fechaHoraBanco DateTime? // instante del pago según el banco; sirve para ordenar y para cortar entre contenedores
+
+  devuelto       Boolean   @default(false) // devolución al cliente; no cuenta en los totales recibidos
+  devueltoEn     DateTime?
+  devueltoPorId  String?
+  devueltoPor    Usuario?  @relation("PagoDevueltoPor", fields: [devueltoPorId], references: [id])
 
   cobradorAsignadoPorId String?
   cobradorAsignadoPor   Usuario?  @relation("PagoCobradorAsignadoPor", fields: [cobradorAsignadoPorId], references: [id])

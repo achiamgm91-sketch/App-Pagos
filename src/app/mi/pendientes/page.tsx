@@ -25,7 +25,7 @@ export default async function PendientesPage() {
   }
 
   const pendientesRaw = await prisma.pago.findMany({
-    where: { cobradorId: null, banco: { not: "Ajuste" } },
+    where: { cobradorId: null, banco: { not: "Ajuste" }, devuelto: false },
     orderBy: ORDEN_BANCO_DESC,
   });
 

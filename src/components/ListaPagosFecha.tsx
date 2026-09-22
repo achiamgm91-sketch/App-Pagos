@@ -25,6 +25,7 @@ type PagoFecha = {
   tasaCambio: number | null;
   fechaTasaCambio: string | null;
   monedaOriginal: string;
+  devuelto: boolean;
 };
 
 type Filtros = {
@@ -59,6 +60,7 @@ export default function ListaPagosFecha({
   filtrosIniciales,
   contenedores,
   cobradores,
+  esSuperAdmin,
 }: {
   pagosIniciales: PagoFecha[];
   totalUsdInicial: number;
@@ -69,6 +71,7 @@ export default function ListaPagosFecha({
   filtrosIniciales: Filtros;
   contenedores: { id: string; nombre: string }[];
   cobradores: { id: string; nombre: string }[];
+  esSuperAdmin: boolean;
 }) {
   const router = useRouter();
 
@@ -255,7 +258,7 @@ export default function ListaPagosFecha({
       ) : (
         <>
           {pagos.map((pago) => (
-            <TarjetaPago key={pago.id} pago={pago} contenedores={contenedores} cobradores={cobradores} />
+            <TarjetaPago key={pago.id} pago={pago} contenedores={contenedores} cobradores={cobradores} esSuperAdmin={esSuperAdmin} />
           ))}
 
           {hasMore && (

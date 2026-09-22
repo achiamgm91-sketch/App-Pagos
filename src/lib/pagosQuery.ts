@@ -74,6 +74,7 @@ export function simplificarPago(p: any) {
     tasaCambio: p.tasaCambio !== null ? Number(p.tasaCambio) : null,
     fechaTasaCambio: p.fechaTasaCambio ? p.fechaTasaCambio.toISOString().slice(0, 10) : null,
     monedaOriginal: p.monedaOriginal,
+    devuelto: p.devuelto,
   };
 }
 
@@ -89,7 +90,7 @@ export async function obtenerPagosFiltrados(filtros: FiltrosPagos, page: number)
       take: PAGE_SIZE,
     }),
     prisma.pago.aggregate({
-      where,
+      where: { ...where, devuelto: false },
       _sum: { importeUsd: true, importeEur: true },
     }),
     prisma.pago.count({ where }),

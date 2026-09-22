@@ -33,7 +33,7 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
 
   const saldoInicial = Number(contenedor.saldoInicial);
   const totalFactura = Number(contenedor.totalFactura);
-  const pagosConImporte = contenedor.pagos.filter((p) => p.importeUsd !== null);
+  const pagosConImporte = contenedor.pagos.filter((p) => p.importeUsd !== null && !p.devuelto);
   const recibido = round2(
     saldoInicial + pagosConImporte.reduce((sum, p) => sum + Number(p.importeUsd), 0)
   );
@@ -73,6 +73,7 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
     "Actualizado en",
     "Cobrador asignado por",
     "Cobrador asignado en",
+    "Devuelto",
   ];
 
   const nombreUsuario = (u: { nombre: string | null; usuario: string } | null) =>
@@ -98,19 +99,20 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
       p.actualizadoEn.toLocaleString("es-ES"),
       p.cobradorAsignadoPor ? nombreUsuario(p.cobradorAsignadoPor) : "—",
       p.cobradorAsignadoEn ? p.cobradorAsignadoEn.toLocaleString("es-ES") : "—",
+      p.devuelto ? `Sí (${p.devueltoEn ? p.devueltoEn.toLocaleDateString("es-ES") : ""})` : "",
     ];
   });
 
   const wsPagos = XLSX.utils.aoa_to_sheet([
     cabecera,
     ...filas,
-    ["", "", "", "SALDO INICIAL (no es un pago de cliente)", "", "", "", saldoInicial, "", "", "", "", "", "", "", "", "", ""],
-    ["", "", "", "TOTAL RECIBIDO", "", "", "", recibido, "", "", "", "", "", "", "", "", "", ""],
+    ["", "", "", "SALDO INICIAL (no es un pago de cliente)", "", "", "", saldoInicial, "", "", "", "", "", "", "", "", "", "", ""],
+    ["", "", "", "TOTAL RECIBIDO (sin devoluciones)", "", "", "", recibido, "", "", "", "", "", "", "", "", "", "", ""],
   ]);
   wsPagos["!cols"] = [
     { wch: 26 }, { wch: 22 }, { wch: 11 }, { wch: 28 }, { wch: 10 }, { wch: 18 },
     { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 14 }, { wch: 14 }, { wch: 24 },
-    { wch: 16 }, { wch: 18 }, { wch: 16 }, { wch: 18 }, { wch: 18 }, { wch: 18 },
+    { wch: 16 }, { wch: 18 }, { wch: 16 }, { wch: 18 }, { wch: 18 }, { wch: 18 }, { wch: 16 },
   ];
 
   for (let fila = 1; fila <= filas.length; fila++) {

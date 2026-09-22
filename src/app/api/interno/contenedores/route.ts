@@ -30,7 +30,7 @@ export async function GET(req: NextRequest) {
     const saldoInicial = Number(c.saldoInicial);
     const totalFactura = Number(c.totalFactura);
     const recibidoUsd = round2(
-      saldoInicial + c.pagos.reduce((sum, p) => sum + (p.importeUsd !== null ? Number(p.importeUsd) : 0), 0)
+      saldoInicial + c.pagos.filter((p) => !p.devuelto).reduce((sum, p) => sum + (p.importeUsd !== null ? Number(p.importeUsd) : 0), 0)
     );
     const porcentajePagado = totalFactura > 0 ? Math.min(Math.round((recibidoUsd / totalFactura) * 100), 100) : 0;
 

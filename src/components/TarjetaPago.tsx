@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import AsignarCobrador from "@/components/AsignarCobrador";
 import QuitarAsignacion from "@/components/QuitarAsignacion";
 import ReasignarContenedor from "@/components/ReasignarContenedor";
+import DevolverPago from "@/components/DevolverPago";
 import { round2, formatMonto } from "@/lib/format";
 
 type Pago = {
@@ -20,6 +21,7 @@ type Pago = {
   tasaCambio: number | null;
   fechaTasaCambio: string | null;
   monedaOriginal: string;
+  devuelto: boolean;
 };
 
 function importeOriginal(p: Pago) {
@@ -39,10 +41,12 @@ export default function TarjetaPago({
   pago,
   contenedores,
   cobradores,
+  esSuperAdmin,
 }: {
   pago: Pago;
   contenedores: { id: string; nombre: string }[];
   cobradores: { id: string; nombre: string }[];
+  esSuperAdmin: boolean;
 }) {
   const router = useRouter();
   const [menuAbierto, setMenuAbierto] = useState(false);
@@ -171,12 +175,23 @@ export default function TarjetaPago({
   return (
     <div
       className={`bg-white border rounded-xl p-3.5 mb-2.5 ${
-        pago.cobradorNombre ? "border-line" : "border-[#F3C9C9] border-l-[3px] border-l-alert"
+        pago.devuelto
+          ? "border-line opacity-60"
+          : pago.cobradorNombre
+          ? "border-line"
+          : "border-[#F3C9C9] border-l-[3px] border-l-alert"
       }`}
     >
       <div className="flex justify-between items-start mb-3">
         <div>
-          <div className="font-semibold text-[14.5px]">{pago.persona}</div>
+          <div className="font-semibold text-[14.5px]">
+            {pago.persona}
+            {pago.devuelto && (
+              <span className="ml-1.5 inline-block bg-alert/10 text-alert text-[10px] font-mono font-semibold uppercase px-1.5 py-0.5 rounded align-middle">
+                Devuelto
+              </span>
+            )}
+          </div>
           <div className="font-mono text-[11.5px] text-steel mt-0.5">
             {new Date(pago.fecha).toLocaleDateString("es-ES")} · {pago.banco}
           </div>
@@ -234,6 +249,11 @@ export default function TarjetaPago({
                     {eliminando ? "..." : "Eliminar"}
                   </button>
                 </div>
+                {esSuperAdmin && pago.banco !== "Ajuste" && (
+                  <div className="border-t border-line pt-2.5 mt-2.5">
+                    <DevolverPago pagoId={pago.id} persona={pago.persona} devuelto={pago.devuelto} />
+                  </div>
+                )}
                 {error && <div className="text-[10.5px] font-mono text-alert mt-2">{error}</div>}
               </div>
             )}

@@ -18,6 +18,8 @@ const ACCION_LABEL: Record<string, string> = {
   cierre_automatico: "Cierre automático de contenedor",
   recalcular_pagos: "Recalculó pagos con nueva tasa",
   importar_pagos: "Importó pagos desde un fichero",
+  devolver_pago: "Registró una devolución",
+  deshacer_devolucion_pago: "Deshizo una devolución",
 };
 
 function formatFechaHora(d: Date) {
