@@ -5,7 +5,8 @@ import { prisma } from "@/lib/prisma";
 import { registrarActividad } from "@/lib/actividad";
 import { tienePermiso } from "@/lib/permisos";
 
-export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
+export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
   const session = await getServerSession(authOptions);
   if (!session) {
     return NextResponse.json({ error: "No autorizado" }, { status: 401 });
@@ -40,7 +41,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   if (body.banco !== undefined) data.banco = body.banco;
 
   const pago = await prisma.pago.update({
-    where: { id: params.id },
+    where: { id: id },
     data,
     include: { cobrador: true, contenedor: true, cobradorAsignadoPor: true },
   });
@@ -56,7 +57,8 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   return NextResponse.json({ pago });
 }
 
-export async function DELETE(req: NextRequest, { params }: { params: { id: string } }) {
+export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
   const session = await getServerSession(authOptions);
   if (!session) {
     return NextResponse.json({ error: "No autorizado" }, { status: 401 });
@@ -66,12 +68,12 @@ export async function DELETE(req: NextRequest, { params }: { params: { id: strin
     return NextResponse.json({ error: "No autorizado" }, { status: 403 });
   }
 
-  const pago = await prisma.pago.findUnique({ where: { id: params.id }, select: { id: true, persona: true } });
+  const pago = await prisma.pago.findUnique({ where: { id: id }, select: { id: true, persona: true } });
   if (!pago) {
     return NextResponse.json({ error: "Pago no encontrado" }, { status: 404 });
   }
 
-  await prisma.pago.delete({ where: { id: params.id } });
+  await prisma.pago.delete({ where: { id: id } });
 
   const usuarioId = (session.user as any).id as string;
   await registrarActividad({

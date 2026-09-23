@@ -5,7 +5,8 @@ import { prisma } from "@/lib/prisma";
 import { registrarActividad } from "@/lib/actividad";
 import { tienePermiso } from "@/lib/permisos";
 
-export async function POST(_req: NextRequest, { params }: { params: { id: string } }) {
+export async function POST(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
   const session = await getServerSession(authOptions);
   if (!session) {
     return NextResponse.json({ error: "No autorizado" }, { status: 401 });
@@ -16,7 +17,7 @@ export async function POST(_req: NextRequest, { params }: { params: { id: string
   const permisos = (session.user as any).permisos as string[];
   const cobradorIdSesion = (session.user as any).cobradorId as string | null;
 
-  const pago = await prisma.pago.findUnique({ where: { id: params.id } });
+  const pago = await prisma.pago.findUnique({ where: { id: id } });
   if (!pago) {
     return NextResponse.json({ error: "Pago no encontrado" }, { status: 404 });
   }
@@ -29,7 +30,7 @@ export async function POST(_req: NextRequest, { params }: { params: { id: string
   }
 
   const actualizado = await prisma.pago.update({
-    where: { id: params.id },
+    where: { id: id },
     data: {
       cobradorId: null,
       cobradorAsignadoPorId: null,
@@ -42,7 +43,7 @@ export async function POST(_req: NextRequest, { params }: { params: { id: string
     usuarioId,
     accion: "desasignar_pago",
     entidad: "Pago",
-    entidadId: params.id,
+    entidadId: id,
     detalle: `${pago.persona}: quitado del cobrador`,
   });
 

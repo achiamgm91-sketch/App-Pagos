@@ -10,7 +10,8 @@ import {
   cerrarContenedorSiCompleto,
 } from "@/lib/cierreAutomatico";
 
-export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
+export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
   const session = await getServerSession(authOptions);
   if (!session) {
     return NextResponse.json({ error: "No autorizado" }, { status: 401 });
@@ -20,7 +21,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   }
   const usuarioId = (session.user as any).id as string;
 
-  const pago = await prisma.pago.findUnique({ where: { id: params.id } });
+  const pago = await prisma.pago.findUnique({ where: { id: id } });
   if (!pago) {
     return NextResponse.json({ error: "Pago no encontrado" }, { status: 404 });
   }
@@ -31,7 +32,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   const nuevoEstado = !pago.devuelto;
 
   const actualizado = await prisma.pago.update({
-    where: { id: params.id },
+    where: { id: id },
     data: {
       devuelto: nuevoEstado,
       devueltoEn: nuevoEstado ? new Date() : null,
@@ -44,8 +45,8 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   // del propio pago. Si ese contenedor no tiene corte, se resta/suma del saldo
   // inicial del siguiente contenedor (transición manual por fecha) y, a partir de
   // ahí, se sigue encadenando por si ese siguiente ya tenía su propio corte.
-  let pasos = await recuadrarPorDevolucion(params.id);
-  const ajusteSaldo = pasos.length === 0 ? await ajustarSaldoInicialSiguiente(params.id, nuevoEstado ? 1 : -1) : null;
+  let pasos = await recuadrarPorDevolucion(id);
+  const ajusteSaldo = pasos.length === 0 ? await ajustarSaldoInicialSiguiente(id, nuevoEstado ? 1 : -1) : null;
   if (ajusteSaldo) {
     pasos = await recuadrarContenedorConSiguiente(ajusteSaldo.siguienteId);
   }
@@ -78,7 +79,8 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   return NextResponse.json({ pago: actualizado, pasos, ajusteSaldo });
 }
 
-export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
+export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
   const session = await getServerSession(authOptions);
   if (!session) {
     return NextResponse.json({ error: "No autorizado" }, { status: 401 });
@@ -87,7 +89,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     return NextResponse.json({ error: "Solo un superadministrador puede editar la nota" }, { status: 403 });
   }
 
-  const pago = await prisma.pago.findUnique({ where: { id: params.id } });
+  const pago = await prisma.pago.findUnique({ where: { id: id } });
   if (!pago) {
     return NextResponse.json({ error: "Pago no encontrado" }, { status: 404 });
   }
@@ -99,7 +101,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   const nota = typeof body.nota === "string" ? body.nota.trim().slice(0, 500) : "";
 
   const actualizado = await prisma.pago.update({
-    where: { id: params.id },
+    where: { id: id },
     data: { devueltoNota: nota || null, actualizadoPorId: (session.user as any).id },
   });
 

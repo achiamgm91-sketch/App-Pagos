@@ -7,7 +7,8 @@ import bcrypt from "bcryptjs";
 
 const ROLES_ADMIN = ["ADMIN", "SUPERADMIN"];
 
-export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
+export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
   const session = await getServerSession(authOptions);
   if (!session || !ROLES_ADMIN.includes((session.user as any).rol)) {
     return NextResponse.json({ error: "No autorizado" }, { status: 403 });
@@ -21,7 +22,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   const passwordHash = await bcrypt.hash(password, 10);
 
   const usuario = await prisma.usuario.update({
-    where: { id: params.id },
+    where: { id: id },
     data: { passwordHash, debeCambiarPassword: true },
   });
 
@@ -29,7 +30,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     usuarioId: (session.user as any).id,
     accion: "resetear_password",
     entidad: "Usuario",
-    entidadId: params.id,
+    entidadId: id,
     detalle: `Reseteó la contraseña de "${usuario.usuario}"`,
   });
 

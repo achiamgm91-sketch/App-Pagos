@@ -8,17 +8,18 @@ import { obtenerPagosFiltrados, simplificarPago } from "@/lib/pagosQuery";
 export const dynamic = "force-dynamic";
 
 export default async function PagosPorFechaPage({
-  searchParams,
+  searchParams: searchParamsPromise,
 }: {
-  searchParams: {
+  searchParams: Promise<{
     contenedorId?: string;
     fecha?: string;
     nombre?: string;
     cobrador?: string;
     monto?: string;
     moneda?: string;
-  };
+  }>;
 }) {
+  const searchParams = await searchParamsPromise;
   const filtros = {
     contenedorId: searchParams.contenedorId || "",
     fecha: searchParams.fecha || "",

@@ -5,7 +5,8 @@ import { prisma } from "@/lib/prisma";
 import { registrarActividad } from "@/lib/actividad";
 import { tienePermiso } from "@/lib/permisos";
 
-export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
+export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
   const session = await getServerSession(authOptions);
   if (!session) {
     return NextResponse.json({ error: "No autorizado" }, { status: 401 });
@@ -33,7 +34,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   if (contenedorId) data.contenedorId = contenedorId;
 
   const pago = await prisma.pago.update({
-    where: { id: params.id },
+    where: { id: id },
     data,
     include: { cobrador: true, contenedor: true },
   });
@@ -42,7 +43,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     usuarioId,
     accion: "asignar_pago",
     entidad: "Pago",
-    entidadId: params.id,
+    entidadId: id,
     detalle: `${pago.persona}: ${cobradorId ? `asignado a ${pago.cobrador?.nombre}` : ""}${
       contenedorId ? `movido al contenedor ${pago.contenedor?.nombre}` : ""
     }`,

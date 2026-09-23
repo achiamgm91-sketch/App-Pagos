@@ -5,7 +5,8 @@ import { prisma } from "@/lib/prisma";
 import { registrarActividad } from "@/lib/actividad";
 import { tienePermiso } from "@/lib/permisos";
 
-export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
+export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
   const session = await getServerSession(authOptions);
   if (!session) {
     return NextResponse.json({ error: "No autorizado" }, { status: 401 });
@@ -45,7 +46,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   if (body.estado !== undefined) data.estado = body.estado;
 
   const contenedor = await prisma.contenedor.update({
-    where: { id: params.id },
+    where: { id: id },
     data,
   });
 
@@ -60,7 +61,8 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   return NextResponse.json({ contenedor });
 }
 
-export async function DELETE(_req: NextRequest, { params }: { params: { id: string } }) {
+export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
   const session = await getServerSession(authOptions);
   if (!session) {
     return NextResponse.json({ error: "No autorizado" }, { status: 401 });
@@ -71,7 +73,7 @@ export async function DELETE(_req: NextRequest, { params }: { params: { id: stri
   }
 
   const contenedor = await prisma.contenedor.findUnique({
-    where: { id: params.id },
+    where: { id: id },
     select: { id: true, nombre: true },
   });
 
@@ -80,8 +82,8 @@ export async function DELETE(_req: NextRequest, { params }: { params: { id: stri
   }
 
   await prisma.$transaction([
-    prisma.pago.deleteMany({ where: { contenedorId: params.id } }),
-    prisma.contenedor.delete({ where: { id: params.id } }),
+    prisma.pago.deleteMany({ where: { contenedorId: id } }),
+    prisma.contenedor.delete({ where: { id: id } }),
   ]);
 
   const usuarioId = (session.user as any).id as string;

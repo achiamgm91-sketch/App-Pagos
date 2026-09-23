@@ -19,12 +19,13 @@ function formatImporte(pago: { importeUsd: any; importeEur: any }) {
   return "—";
 }
 
-export default async function DetalleCobradorPage({ params }: { params: { id: string } }) {
-  const cobrador = await prisma.cobrador.findUnique({ where: { id: params.id } });
+export default async function DetalleCobradorPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  const cobrador = await prisma.cobrador.findUnique({ where: { id } });
   if (!cobrador) notFound();
 
   const pagos = await prisma.pago.findMany({
-    where: { cobradorId: params.id },
+    where: { cobradorId: id },
     include: { contenedor: true, cobradorAsignadoPor: true },
     orderBy: ORDEN_BANCO_DESC,
   });

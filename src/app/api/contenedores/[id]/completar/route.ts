@@ -5,7 +5,8 @@ import { prisma } from "@/lib/prisma";
 import { registrarActividad } from "@/lib/actividad";
 import { tienePermiso } from "@/lib/permisos";
 
-export async function POST(_req: NextRequest, { params }: { params: { id: string } }) {
+export async function POST(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
   const session = await getServerSession(authOptions);
   if (!session) {
     return NextResponse.json({ error: "No autorizado" }, { status: 401 });
@@ -16,7 +17,7 @@ export async function POST(_req: NextRequest, { params }: { params: { id: string
   }
 
   const contenedor = await prisma.contenedor.update({
-    where: { id: params.id },
+    where: { id: id },
     data: { estado: "COMPLETADO", actualizadoPorId: (session.user as any).id },
   });
 
@@ -24,7 +25,7 @@ export async function POST(_req: NextRequest, { params }: { params: { id: string
     usuarioId: (session.user as any).id,
     accion: "completar_contenedor",
     entidad: "Contenedor",
-    entidadId: params.id,
+    entidadId: id,
     detalle: `Marcó "${contenedor.nombre}" como completado`,
   });
 

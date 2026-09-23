@@ -5,8 +5,9 @@ import ContenedorForm from "@/components/ContenedorForm";
 
 export const dynamic = "force-dynamic";
 
-export default async function EditarContenedorPage({ params }: { params: { id: string } }) {
-  const contenedor = await prisma.contenedor.findUnique({ where: { id: params.id } });
+export default async function EditarContenedorPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  const contenedor = await prisma.contenedor.findUnique({ where: { id } });
   if (!contenedor) notFound();
 
   return (

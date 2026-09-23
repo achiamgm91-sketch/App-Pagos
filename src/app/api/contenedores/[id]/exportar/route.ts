@@ -7,7 +7,8 @@ import { round2 } from "@/lib/format";
 import { ORDEN_BANCO_DESC, ORDEN_BANCO_ASC } from "@/lib/pagosBanco";
 import { tienePermiso } from "@/lib/permisos";
 
-export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
   const session = await getServerSession(authOptions);
   const rolSesion = (session?.user as any)?.rol;
   const permisosSesion = (session?.user as any)?.permisos;
@@ -20,7 +21,7 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
   }
 
   const contenedor = await prisma.contenedor.findUnique({
-    where: { id: params.id },
+    where: { id: id },
     include: {
       pagos: {
         orderBy: ORDEN_BANCO_ASC,

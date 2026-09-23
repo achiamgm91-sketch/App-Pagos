@@ -25,10 +25,11 @@ function formatEnMoneda(valorUsd: number, moneda: string, tasaUsdPorEur: number 
 }
 
 export default async function DashboardPage({
-  searchParams,
+  searchParams: searchParamsPromise,
 }: {
-  searchParams: { contenedorId?: string };
+  searchParams: Promise<{ contenedorId?: string }>;
 }) {
+  const searchParams = await searchParamsPromise;
   const session = await getServerSession(authOptions);
 
   const includePagos = {

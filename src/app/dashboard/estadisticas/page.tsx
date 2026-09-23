@@ -9,10 +9,11 @@ import LineaTiempoContenedores from "@/components/LineaTiempoContenedores";
 export const dynamic = "force-dynamic";
 
 export default async function EstadisticasPage({
-  searchParams,
+  searchParams: searchParamsPromise,
 }: {
-  searchParams: { contenedorId?: string; rango?: string };
+  searchParams: Promise<{ contenedorId?: string; rango?: string }>;
 }) {
+  const searchParams = await searchParamsPromise;
   const filtros = {
     contenedorId: searchParams.contenedorId || "",
     rango: (searchParams.rango as "30" | "todo") || "30",
