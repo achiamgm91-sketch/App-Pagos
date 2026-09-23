@@ -1,12 +1,72 @@
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { registrarActividad } from "@/lib/actividad";
 import { obtenerOcrearUsuarioCron } from "@/lib/usuarioSistema";
 import { ORDEN_BANCO_ASC } from "@/lib/pagosBanco";
-import { calcularCruce, siguienteNombre } from "@/lib/cruceContenedor";
+import { calcularCruce, siguienteNombre, extraerNumeroContenedor } from "@/lib/cruceContenedor";
 
 export const BANCO_AJUSTE = "Ajuste";
 const round2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
 const DIAS_MAX_CRUCE = 10;
+
+type PagoParaAjuste = {
+  id: string;
+  fecha: Date;
+  tasaCambio: Prisma.Decimal | null;
+  fechaTasaCambio: Date | null;
+  monedaOriginal: string;
+  importeEur: Prisma.Decimal | null;
+  importeUsd: Prisma.Decimal | null;
+  fechaHoraBanco: Date | null;
+};
+
+/**
+ * Crea, dentro de una transacción, la fila "Pasa al siguiente contenedor" (en
+ * negativo, justo debajo del pago que cruza) y deja el sobrante como saldo
+ * inicial + corte del contenedor siguiente. Compartida por el cierre
+ * automático y por el recuadre tras una devolución, que hacían exactamente
+ * lo mismo por separado.
+ */
+async function aplicarCruce(
+  tx: Prisma.TransactionClient,
+  contenedorOrigenId: string,
+  siguienteId: string,
+  pagoCruce: PagoParaAjuste,
+  excedente: number,
+  moneda: "EUR" | "USD",
+  usuarioSistemaId: string
+) {
+  await tx.contenedor.update({
+    where: { id: siguienteId },
+    data: { inicioBanco: pagoCruce.fechaHoraBanco, saldoInicial: excedente, monedaSaldoInicial: moneda },
+  });
+
+  if (excedente <= 0) return;
+
+  const otraMoneda = moneda === "EUR" ? "importeUsd" : "importeEur";
+  const importeCruce = Number(moneda === "EUR" ? pagoCruce.importeEur : pagoCruce.importeUsd);
+  const otro = pagoCruce[otraMoneda] !== null ? Number(pagoCruce[otraMoneda]) : null;
+  const fraccion = excedente / importeCruce;
+
+  await tx.pago.create({
+    data: {
+      contenedorId: contenedorOrigenId,
+      fecha: pagoCruce.fecha,
+      persona: "Pasa al siguiente contenedor",
+      importeEur: moneda === "EUR" ? -excedente : otro !== null ? -round2(otro * fraccion) : null,
+      importeUsd: moneda === "USD" ? -excedente : otro !== null ? -round2(otro * fraccion) : null,
+      tasaCambio: pagoCruce.tasaCambio,
+      fechaTasaCambio: pagoCruce.fechaTasaCambio,
+      monedaOriginal: pagoCruce.monedaOriginal,
+      banco: BANCO_AJUSTE,
+      idOrigen: `AJUSTE:${pagoCruce.id}`,
+      // 1 ms antes que el pago: en el listado (más reciente primero) queda justo debajo
+      fechaHoraBanco: pagoCruce.fechaHoraBanco ? new Date(pagoCruce.fechaHoraBanco.getTime() - 1) : null,
+      creadoPorId: usuarioSistemaId,
+      actualizadoPorId: usuarioSistemaId,
+    },
+  });
+}
 
 export type ResultadoCierre = {
   cerrado: string;
@@ -90,11 +150,22 @@ export async function cerrarContenedorSiCompleto(): Promise<ResultadoCierre | nu
   const pagoCruce = pagosContables[cruce.indice];
   const limite = new Date();
   limite.setDate(limite.getDate() - DIAS_MAX_CRUCE);
-  if (pagoCruce.fecha < limite) return null; // cruce antiguo: no reordenar histórico
+  if (pagoCruce.fecha < limite) {
+    // El pago que cruza el total es demasiado antiguo (probable cron caído varios
+    // días): no reordenamos histórico solo, pero lo dejamos anotado para que se
+    // revise a mano, en vez de fallar en silencio.
+    const usuarioSistema = await obtenerOcrearUsuarioCron();
+    await registrarActividad({
+      usuarioId: usuarioSistema.id,
+      accion: "cierre_automatico_pendiente",
+      entidad: "Contenedor",
+      entidadId: activo.id,
+      detalle: `"${activo.nombre}" ya alcanzó su total, pero el pago que lo completa es de hace más de ${DIAS_MAX_CRUCE} días (${pagoCruce.fecha.toISOString().slice(0, 10)}); hay que completarlo a mano.`,
+    });
+    return null;
+  }
 
   const usuarioSistema = await obtenerOcrearUsuarioCron();
-  const otraMoneda = moneda === "EUR" ? "importeUsd" : "importeEur";
-  const importeCruce = importeDe(pagoCruce) as number;
 
   const resultado = await prisma.$transaction(async (tx) => {
     const cerrado = await tx.contenedor.updateMany({
@@ -118,28 +189,7 @@ export async function cerrarContenedorSiCompleto(): Promise<ResultadoCierre | nu
       },
     });
 
-    if (cruce.excedente > 0) {
-      const fraccion = cruce.excedente / importeCruce;
-      const otro = pagoCruce[otraMoneda] !== null ? Number(pagoCruce[otraMoneda]) : null;
-      await tx.pago.create({
-        data: {
-          contenedorId: activo.id,
-          fecha: pagoCruce.fecha,
-          persona: "Pasa al siguiente contenedor",
-          importeEur: moneda === "EUR" ? -cruce.excedente : otro !== null ? -round2(otro * fraccion) : null,
-          importeUsd: moneda === "USD" ? -cruce.excedente : otro !== null ? -round2(otro * fraccion) : null,
-          tasaCambio: pagoCruce.tasaCambio,
-          fechaTasaCambio: pagoCruce.fechaTasaCambio,
-          monedaOriginal: pagoCruce.monedaOriginal,
-          banco: BANCO_AJUSTE,
-          idOrigen: `AJUSTE:${pagoCruce.id}`,
-          // 1 ms antes que el pago: en el listado (más reciente primero) queda justo debajo
-          fechaHoraBanco: pagoCruce.fechaHoraBanco ? new Date(pagoCruce.fechaHoraBanco.getTime() - 1) : null,
-          creadoPorId: usuarioSistema.id,
-          actualizadoPorId: usuarioSistema.id,
-        },
-      });
-    }
+    await aplicarCruce(tx, activo.id, nuevo.id, pagoCruce, cruce.excedente, moneda, usuarioSistema.id);
 
     return nuevo;
   });
@@ -252,41 +302,27 @@ export async function recuadrarContenedorConSiguiente(
   const idsPosteriores = pool.slice(idxEnPool + 1).map((p) => p.id);
   const usuarioSistema = await obtenerOcrearUsuarioCron();
 
-  await prisma.$transaction(async (tx) => {
-    await tx.pago.delete({ where: { id: ajuste.id } });
-    await tx.pago.updateMany({ where: { id: { in: pool.map((p) => p.id) } }, data: { contenedorId: contenedor.id } });
-    if (idsPosteriores.length > 0) {
-      await tx.pago.updateMany({ where: { id: { in: idsPosteriores } }, data: { contenedorId: siguiente.id } });
-    }
-    await tx.contenedor.update({
-      where: { id: siguiente.id },
-      data: { inicioBanco: pagoCruce.fechaHoraBanco, saldoInicial: cruce.excedente, monedaSaldoInicial: moneda },
+  try {
+    await prisma.$transaction(async (tx) => {
+      await tx.pago.delete({ where: { id: ajuste.id } });
+      await tx.pago.updateMany({ where: { id: { in: pool.map((p) => p.id) } }, data: { contenedorId: contenedor.id } });
+      if (idsPosteriores.length > 0) {
+        await tx.pago.updateMany({ where: { id: { in: idsPosteriores } }, data: { contenedorId: siguiente.id } });
+      }
+      await aplicarCruce(tx, contenedor.id, siguiente.id, pagoCruce, cruce.excedente, moneda, usuarioSistema.id);
     });
-
-    if (cruce.excedente > 0) {
-      const otraMoneda = moneda === "EUR" ? "importeUsd" : "importeEur";
-      const importeCruce = importeDe(pagoCruce) as number;
-      const otro = pagoCruce[otraMoneda] !== null ? Number(pagoCruce[otraMoneda]) : null;
-      const fraccion = cruce.excedente / importeCruce;
-      await tx.pago.create({
-        data: {
-          contenedorId: contenedor.id,
-          fecha: pagoCruce.fecha,
-          persona: "Pasa al siguiente contenedor",
-          importeEur: moneda === "EUR" ? -cruce.excedente : otro !== null ? -round2(otro * fraccion) : null,
-          importeUsd: moneda === "USD" ? -cruce.excedente : otro !== null ? -round2(otro * fraccion) : null,
-          tasaCambio: pagoCruce.tasaCambio,
-          fechaTasaCambio: pagoCruce.fechaTasaCambio,
-          monedaOriginal: pagoCruce.monedaOriginal,
-          banco: BANCO_AJUSTE,
-          idOrigen: `AJUSTE:${pagoCruce.id}`,
-          fechaHoraBanco: pagoCruce.fechaHoraBanco ? new Date(pagoCruce.fechaHoraBanco.getTime() - 1) : null,
-          creadoPorId: usuarioSistema.id,
-          actualizadoPorId: usuarioSistema.id,
-        },
+  } catch (e: any) {
+    // P2025 = el registro que queríamos borrar/actualizar ya no existía: otra
+    // devolución concurrente sobre el mismo contenedor llegó primero. No hay nada
+    // que recuadrar aquí; quien la disparó puede reintentarlo si hace falta.
+    if (e?.code === "P2025") {
+      console.error("recuadrarContenedorConSiguiente: carrera detectada, se reintentará por separado", {
+        contenedorId: contenedor.id,
       });
+      return [{ contenedor: contenedor.nombre, siguiente: siguiente.nombre, completo: false }];
     }
-  });
+    throw e;
+  }
 
   const pasoActual: ResultadoRecuadre = { contenedor: contenedor.nombre, siguiente: siguiente.nombre, completo: true };
   const pasosSiguientes = await recuadrarContenedorConSiguiente(siguiente.id, profundidad + 1);
@@ -301,6 +337,34 @@ export type ResultadoAjusteSaldo = {
 };
 
 /**
+ * Busca "el contenedor siguiente" de una secuencia numerada ("Contenedor 8" ->
+ * "Contenedor 9"), no simplemente el que tenga la fecha de inicio más próxima:
+ * puede haber contenedores sueltos sin numerar intercalados (p.ej. un envío
+ * especial de una sola vez) que no forman parte de la secuencia principal y no
+ * deberían recibir un ajuste pensado para el siguiente número.
+ * Si el contenedor de partida no tiene número en el nombre, no hay secuencia
+ * clara a la que anclarse: se usa como último recurso el siguiente por fecha.
+ */
+async function buscarContenedorSiguienteEnSecuencia(contenedor: { id: string; nombre: string; fechaInicio: Date }) {
+  const numeroActual = extraerNumeroContenedor(contenedor.nombre);
+  const posteriores = await prisma.contenedor.findMany({
+    where: { fechaInicio: { gt: contenedor.fechaInicio } },
+    orderBy: [{ fechaInicio: "asc" }, { creadoEn: "asc" }],
+  });
+
+  if (numeroActual !== null) {
+    const numerados = posteriores
+      .map((c) => ({ c, n: extraerNumeroContenedor(c.nombre) }))
+      .filter((x): x is { c: (typeof posteriores)[number]; n: number } => x.n !== null && x.n > numeroActual)
+      .sort((a, b) => a.n - b.n);
+    if (numerados.length > 0) return numerados[0].c;
+  }
+
+  // Sin número que seguir (o ninguno posterior numerado): mejor esfuerzo por fecha.
+  return posteriores[0] ?? null;
+}
+
+/**
  * Para contenedores SIN corte automático (transiciones antiguas por fecha, sin
  * inicioBanco): al marcar o deshacer una devolución, resta o suma el importe del
  * pago (en la moneda del saldo inicial del contenedor siguiente) directamente al
@@ -313,10 +377,7 @@ export async function ajustarSaldoInicialSiguiente(pagoId: string, signo: 1 | -1
   const contenedor = await prisma.contenedor.findUnique({ where: { id: pago.contenedorId } });
   if (!contenedor) return null;
 
-  const siguiente = await prisma.contenedor.findFirst({
-    where: { fechaInicio: { gt: contenedor.fechaInicio } },
-    orderBy: [{ fechaInicio: "asc" }, { creadoEn: "asc" }],
-  });
+  const siguiente = await buscarContenedorSiguienteEnSecuencia(contenedor);
   if (!siguiente) return null;
 
   const importe = siguiente.monedaSaldoInicial === "EUR" ? pago.importeEur : pago.importeUsd;

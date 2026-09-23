@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 
 export default function CambiarPasswordForm({ usuario }: { usuario: string }) {
   const router = useRouter();
+  const [passwordActual, setPasswordActual] = useState("");
   const [password, setPassword] = useState("");
   const [confirmar, setConfirmar] = useState("");
   const [cargando, setCargando] = useState(false);
@@ -13,6 +14,10 @@ export default function CambiarPasswordForm({ usuario }: { usuario: string }) {
 
   async function guardar() {
     setError(null);
+    if (!passwordActual) {
+      setError("Introduce tu contraseña actual");
+      return;
+    }
     if (password.length < 6) {
       setError("Mínimo 6 caracteres");
       return;
@@ -27,7 +32,7 @@ export default function CambiarPasswordForm({ usuario }: { usuario: string }) {
       const res = await fetch("/api/cambiar-password", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ password }),
+        body: JSON.stringify({ password, passwordActual }),
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
@@ -49,6 +54,16 @@ export default function CambiarPasswordForm({ usuario }: { usuario: string }) {
 
   return (
     <div className="space-y-3">
+      <div>
+        <div className="font-mono text-[10.5px] uppercase text-steel mb-1.5">Contraseña actual</div>
+        <input
+          type="password"
+          value={passwordActual}
+          onChange={(e) => setPasswordActual(e.target.value)}
+          placeholder="la que acabas de usar para entrar"
+          className="w-full px-3 py-2.5 border border-line rounded-lg text-[14px] outline-none focus:border-navy-800"
+        />
+      </div>
       <div>
         <div className="font-mono text-[10.5px] uppercase text-steel mb-1.5">Nueva contraseña</div>
         <input

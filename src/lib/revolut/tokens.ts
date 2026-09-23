@@ -75,7 +75,9 @@ async function refrescarToken(refreshToken: string) {
   }
 
   const data: TokenResponse = await res.json();
-  await guardarToken(data.access_token, refreshToken, data.expires_in);
+  // Revolut normalmente no rota el refresh_token, pero si alguna vez lo hiciera,
+  // hay que quedarse con el nuevo en vez de seguir usando el viejo (ya inválido).
+  await guardarToken(data.access_token, data.refresh_token || refreshToken, data.expires_in);
   return data.access_token;
 }
 

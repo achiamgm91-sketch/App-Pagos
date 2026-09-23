@@ -29,3 +29,9 @@ export function siguienteNombre(nombre: string): string {
   if (!m) return `${nombre} (siguiente)`;
   return `${m[1]}${Number(m[2]) + 1}${m[3]}`;
 }
+
+/** Número al final del nombre ("Contenedor 11" -> 11); null si no lo tiene (p.ej. un nombre suelto sin numerar). */
+export function extraerNumeroContenedor(nombre: string): number | null {
+  const m = nombre.match(/(\d+)\D*$/);
+  return m ? Number(m[1]) : null;
+}

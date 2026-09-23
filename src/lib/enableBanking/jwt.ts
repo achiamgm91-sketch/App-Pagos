@@ -1,18 +1,5 @@
 import crypto from "crypto";
-
-function base64url(input: Buffer | string): string {
-  const buf = typeof input === "string" ? Buffer.from(input) : input;
-  return buf.toString("base64").replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
-}
-
-function normalizarClavePrivada(valor: string): string {
-  const conNewlinesReales = valor.replace(/\\n/g, "\n").trim();
-  if (conNewlinesReales.includes("-----BEGIN")) {
-    return conNewlinesReales;
-  }
-  // No parece PEM en claro: asumimos que está codificada en base64.
-  return Buffer.from(valor.trim(), "base64").toString("utf-8");
-}
+import { base64url, normalizarClavePrivada } from "@/lib/jwtUtils";
 
 export function generarJwtEnableBanking(): string {
   const applicationId = process.env.ENABLE_BANKING_APPLICATION_ID;
