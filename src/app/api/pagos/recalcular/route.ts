@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { recalcularPagosConTasaMejorable } from "@/lib/tipoCambio";
+import { tienePermiso } from "@/lib/permisos";
 import { registrarActividad } from "@/lib/actividad";
 
 export async function POST(_req: NextRequest) {
@@ -10,8 +11,7 @@ export async function POST(_req: NextRequest) {
     return NextResponse.json({ error: "No autorizado" }, { status: 401 });
   }
 
-  const rol = (session.user as any).rol as string;
-  if (!["ADMIN", "SUPERADMIN"].includes(rol)) {
+  if (!tienePermiso((session.user as any).rol, (session.user as any).permisos, "gestionar_pagos")) {
     return NextResponse.json({ error: "No autorizado" }, { status: 403 });
   }
 

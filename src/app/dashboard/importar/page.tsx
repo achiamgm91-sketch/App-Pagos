@@ -4,6 +4,8 @@ import { calcularFechaSugeridaRevolut } from "@/lib/revolut/sincronizar";
 import { calcularFechaSugeridaSabadell } from "@/lib/enableBanking/sincronizar";
 import ImportarClient from "@/components/ImportarClient";
 import { ORDEN_BANCO_DESC, ORDEN_BANCO_ASC } from "@/lib/pagosBanco";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
@@ -23,6 +25,9 @@ function serializarEjecucion(e: any) {
 }
 
 export default async function ImportarPage() {
+  const session = await getServerSession(authOptions);
+  const inicioHref = (session?.user as any)?.rol === "COBRADOR" ? "/mi/pendientes" : "/dashboard";
+
   const ultimo = await prisma.tipoCambioDia.aggregate({ _max: { fecha: true } });
   const ultimaFechaTipoCambio = ultimo._max.fecha ? ultimo._max.fecha.toISOString().slice(0, 10) : null;
 
@@ -60,6 +65,7 @@ export default async function ImportarPage() {
 
   return (
     <ImportarClient
+      inicioHref={inicioHref}
       ultimaFechaTipoCambio={ultimaFechaTipoCambio}
       ultimosPorBanco={ultimosPorBanco}
       fechaSugeridaRevolut={fechaSugeridaRevolut}

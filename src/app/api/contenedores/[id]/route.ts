@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { registrarActividad } from "@/lib/actividad";
+import { tienePermiso } from "@/lib/permisos";
 
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
   const session = await getServerSession(authOptions);
@@ -10,8 +11,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     return NextResponse.json({ error: "No autorizado" }, { status: 401 });
   }
 
-  const rolPatch = (session.user as any).rol as string;
-  if (!["ADMIN", "SUPERADMIN"].includes(rolPatch)) {
+  if (!tienePermiso((session.user as any).rol, (session.user as any).permisos, "gestionar_contenedores")) {
     return NextResponse.json({ error: "No autorizado" }, { status: 403 });
   }
 
@@ -66,8 +66,7 @@ export async function DELETE(_req: NextRequest, { params }: { params: { id: stri
     return NextResponse.json({ error: "No autorizado" }, { status: 401 });
   }
 
-  const rol = (session.user as any).rol as string;
-  if (!["ADMIN", "SUPERADMIN"].includes(rol)) {
+  if (!tienePermiso((session.user as any).rol, (session.user as any).permisos, "gestionar_contenedores")) {
     return NextResponse.json({ error: "No autorizado" }, { status: 403 });
   }
 

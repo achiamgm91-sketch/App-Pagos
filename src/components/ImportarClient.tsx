@@ -162,6 +162,7 @@ function TarjetaEjecucionBCE({ titulo, ejecucion }: { titulo: string; ejecucion:
 }
 
 export default function ImportarClient({
+  inicioHref = "/dashboard",
   ultimaFechaTipoCambio,
   ultimosPorBanco,
   fechaSugeridaRevolut,
@@ -170,6 +171,7 @@ export default function ImportarClient({
   ultimaEjecucionCron,
   ultimaEjecucionManual,
 }: {
+  inicioHref?: string;
   ultimaFechaTipoCambio: string | null;
   ultimosPorBanco: UltimoPagoBanco[];
   fechaSugeridaRevolut: string;
@@ -349,7 +351,7 @@ export default function ImportarClient({
   return (
     <div className="min-h-screen">
       <div className="bg-navy-950 text-white px-4.5 py-4 flex items-center justify-between sticky top-0 z-20">
-        <Link href="/dashboard" className="font-mono text-[13px] text-steel-light">
+        <Link href={inicioHref} className="font-mono text-[13px] text-steel-light">
           ← Inicio
         </Link>
         <div className="font-display font-semibold text-base">Importar</div>
@@ -547,7 +549,7 @@ export default function ImportarClient({
               </div>
             </div>
             <Link
-              href="/dashboard"
+              href={inicioHref}
               className="block text-center mt-5 py-3 bg-navy-950 text-white font-semibold text-[13.5px] rounded-lg"
             >
               Ir al Inicio
@@ -576,7 +578,7 @@ export default function ImportarClient({
             {resultado.pagosNuevos.length > 0 && <ListaPagosNuevos pagos={resultado.pagosNuevos} />}
 
             <Link
-              href="/dashboard"
+              href={inicioHref}
               className="block text-center mt-5 py-3 bg-navy-950 text-white font-semibold text-[13.5px] rounded-lg"
             >
               Ir al Inicio y asignar cobradores
@@ -606,7 +608,7 @@ export default function ImportarClient({
             {resultado.pagosNuevos.length > 0 && <ListaPagosNuevos pagos={resultado.pagosNuevos} />}
 
             <Link
-              href="/dashboard"
+              href={inicioHref}
               className="block text-center mt-5 py-3 bg-navy-950 text-white font-semibold text-[13.5px] rounded-lg"
             >
               Ir al Inicio y asignar cobradores
@@ -636,7 +638,7 @@ export default function ImportarClient({
             {resultado.pagosNuevos.length > 0 && <ListaPagosNuevos pagos={resultado.pagosNuevos} />}
 
             <Link
-              href="/dashboard"
+              href={inicioHref}
               className="block text-center mt-5 py-3 bg-navy-950 text-white font-semibold text-[13.5px] rounded-lg"
             >
               Ir al Inicio y asignar cobradores

@@ -5,6 +5,8 @@ import Link from "next/link";
 import CambiarPassword from "@/components/CambiarPassword";
 import CrearUsuario from "@/components/CrearUsuario";
 import PermisoVerTodo from "@/components/PermisoVerTodo";
+import CambiarRol from "@/components/CambiarRol";
+import GestionarPermisos from "@/components/GestionarPermisos";
 
 export const dynamic = "force-dynamic";
 
@@ -23,6 +25,7 @@ const ROL_COLOR: Record<string, string> = {
 export default async function UsuariosPage() {
   const session = await getServerSession(authOptions);
   const esSuperAdmin = (session?.user as any)?.rol === "SUPERADMIN";
+  const sesionUsuarioId = (session?.user as any)?.id as string;
 
   const usuarios = await prisma.usuario.findMany({
     include: { cobrador: true },
@@ -80,7 +83,16 @@ export default async function UsuariosPage() {
               </div>
             )}
 
+            <CambiarRol
+              usuarioId={u.id}
+              rolInicial={u.rol}
+              puedeAsignarSuperAdmin={esSuperAdmin}
+              deshabilitado={u.id === sesionUsuarioId}
+            />
+
             {u.rol === "COBRADOR" && <PermisoVerTodo usuarioId={u.id} valorInicial={u.verTodosPagos} />}
+
+            {u.rol === "COBRADOR" && <GestionarPermisos usuarioId={u.id} permisosIniciales={u.permisos} />}
 
             <CambiarPassword usuarioId={u.id} nombre={u.nombre ?? u.usuario} />
           </div>

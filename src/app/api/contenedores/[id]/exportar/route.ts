@@ -5,10 +5,17 @@ import { prisma } from "@/lib/prisma";
 import * as XLSX from "xlsx";
 import { round2 } from "@/lib/format";
 import { ORDEN_BANCO_DESC, ORDEN_BANCO_ASC } from "@/lib/pagosBanco";
+import { tienePermiso } from "@/lib/permisos";
 
 export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
   const session = await getServerSession(authOptions);
-  if (!session || !["ADMIN", "SUPERADMIN"].includes((session.user as any).rol)) {
+  const rolSesion = (session?.user as any)?.rol;
+  const permisosSesion = (session?.user as any)?.permisos;
+  if (
+    !session ||
+    (!tienePermiso(rolSesion, permisosSesion, "ver_contenedores") &&
+      !tienePermiso(rolSesion, permisosSesion, "gestionar_contenedores"))
+  ) {
     return NextResponse.json({ error: "No autorizado" }, { status: 403 });
   }
 

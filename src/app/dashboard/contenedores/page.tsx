@@ -1,5 +1,8 @@
 import { prisma } from "@/lib/prisma";
 import Link from "next/link";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
+import { tienePermiso } from "@/lib/permisos";
 import EliminarContenedor from "@/components/EliminarContenedor";
 import { round2, formatUsd } from "@/lib/format";
 
@@ -18,6 +21,13 @@ const ESTADO_LABEL: Record<string, string> = {
 };
 
 export default async function ContenedoresPage() {
+  const session = await getServerSession(authOptions);
+  const rol = (session?.user as any)?.rol as string;
+  const permisos = (session?.user as any)?.permisos as string[];
+  const puedeGestionar = tienePermiso(rol, permisos, "gestionar_contenedores");
+  const puedeVerDetalle = rol === "ADMIN" || rol === "SUPERADMIN";
+  const inicioHref = rol === "COBRADOR" ? "/mi/pendientes" : "/dashboard";
+
   const contenedores = await prisma.contenedor.findMany({
     include: { pagos: true },
     orderBy: { creadoEn: "desc" },
@@ -26,7 +36,7 @@ export default async function ContenedoresPage() {
   return (
     <div className="min-h-screen">
       <div className="bg-navy-950 text-white px-4.5 py-4 flex items-center justify-between sticky top-0 z-20">
-        <Link href="/dashboard" className="font-mono text-[13px] text-steel-light">
+        <Link href={inicioHref} className="font-mono text-[13px] text-steel-light">
           ← Inicio
         </Link>
         <div className="font-display font-semibold text-base">Contenedores</div>
@@ -39,12 +49,14 @@ export default async function ContenedoresPage() {
             <div className="font-mono text-[11px] uppercase text-steel mb-1.5">Administración</div>
             <h2 className="font-display text-[22px] font-semibold">Contenedores</h2>
           </div>
-          <Link
-            href="/dashboard/contenedores/nuevo"
-            className="flex-shrink-0 px-3.5 py-2.5 bg-navy-950 text-white text-[13px] font-semibold rounded-lg"
-          >
-            + Nuevo
-          </Link>
+          {puedeGestionar && (
+            <Link
+              href="/dashboard/contenedores/nuevo"
+              className="flex-shrink-0 px-3.5 py-2.5 bg-navy-950 text-white text-[13px] font-semibold rounded-lg"
+            >
+              + Nuevo
+            </Link>
+          )}
         </div>
 
         {contenedores.map((c) => {
@@ -55,10 +67,14 @@ export default async function ContenedoresPage() {
               c.pagos.filter((p) => !p.devuelto).reduce((sum, p) => sum + (p.importeUsd !== null ? Number(p.importeUsd) : 0), 0)
           );
           const pct = totalFactura > 0 ? Math.min(Math.round((recibido / totalFactura) * 100), 100) : 0;
+          const Envoltorio = puedeVerDetalle ? Link : "div";
+          const propsEnvoltorio = puedeVerDetalle
+            ? { href: `/dashboard?contenedorId=${c.id}`, className: "block active:opacity-70" }
+            : {};
 
           return (
             <div key={c.id} className="bg-white border border-line rounded-xl p-4 mb-3">
-              <Link href={`/dashboard?contenedorId=${c.id}`} className="block active:opacity-70">
+              <Envoltorio {...(propsEnvoltorio as any)}>
                 <div className="flex items-start justify-between gap-3 mb-2.5">
                   <div>
                     <div className="font-display font-semibold text-[15px]">{c.nombre}</div>
@@ -84,18 +100,20 @@ export default async function ContenedoresPage() {
                   <span>{formatUsd(recibido)} recibidos ({pct}%)</span>
                   <span>Total: {formatUsd(totalFactura)}</span>
                 </div>
-              </Link>
-              <div className="flex items-center justify-between mt-2.5">
-                <Link
-                  href={`/dashboard/contenedores/${c.id}/editar`}
-                  className="text-[11.5px] font-mono text-navy-800 underline underline-offset-2"
-                >
-                  Editar datos del contenedor
-                </Link>
-                <EliminarContenedor contenedorId={c.id} nombre={c.nombre} numPagos={c.pagos.length} />
-              </div>
+              </Envoltorio>
+              {puedeGestionar && (
+                <div className="flex items-center justify-between mt-2.5">
+                  <Link
+                    href={`/dashboard/contenedores/${c.id}/editar`}
+                    className="text-[11.5px] font-mono text-navy-800 underline underline-offset-2"
+                  >
+                    Editar datos del contenedor
+                  </Link>
+                  <EliminarContenedor contenedorId={c.id} nombre={c.nombre} numPagos={c.pagos.length} />
+                </div>
+              )}
             </div>
-          );
+            );
         })}
       </main>
     </div>

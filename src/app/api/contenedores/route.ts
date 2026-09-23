@@ -3,12 +3,11 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { registrarActividad } from "@/lib/actividad";
-
-const ROLES_ADMIN = ["ADMIN", "SUPERADMIN"];
+import { tienePermiso } from "@/lib/permisos";
 
 export async function POST(req: NextRequest) {
   const session = await getServerSession(authOptions);
-  if (!session || !ROLES_ADMIN.includes((session.user as any).rol)) {
+  if (!session || !tienePermiso((session.user as any).rol, (session.user as any).permisos, "gestionar_contenedores")) {
     return NextResponse.json({ error: "No autorizado" }, { status: 403 });
   }
   const usuarioId = (session.user as any).id as string;

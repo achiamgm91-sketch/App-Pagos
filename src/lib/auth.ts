@@ -34,6 +34,7 @@ export const authOptions: NextAuthOptions = {
           cobradorId: user.cobradorId,
           debeCambiarPassword: user.debeCambiarPassword,
           verTodosPagos: user.verTodosPagos,
+          permisos: user.permisos,
         } as any;
       },
     }),
@@ -47,6 +48,7 @@ export const authOptions: NextAuthOptions = {
         token.cobradorId = (user as any).cobradorId ?? null;
         token.debeCambiarPassword = (user as any).debeCambiarPassword ?? false;
         token.verTodosPagos = (user as any).verTodosPagos ?? false;
+        token.permisos = (user as any).permisos ?? [];
       }
       if (trigger === "update" && session) {
         Object.assign(token, session);
@@ -61,6 +63,7 @@ export const authOptions: NextAuthOptions = {
         (session.user as any).cobradorId = token.cobradorId ?? null;
         (session.user as any).debeCambiarPassword = token.debeCambiarPassword ?? false;
         (session.user as any).verTodosPagos = token.verTodosPagos ?? false;
+        (session.user as any).permisos = token.permisos ?? [];
       }
       return session;
     },

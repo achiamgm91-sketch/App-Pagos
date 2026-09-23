@@ -1,5 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import Link from "next/link";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
 import GraficaPagosDiarios from "@/components/GraficaPagosDiarios";
 import { obtenerTotalesDiarios, obtenerDuracionesContenedores } from "@/lib/estadisticasQuery";
 import LineaTiempoContenedores from "@/components/LineaTiempoContenedores";
@@ -16,6 +18,9 @@ export default async function EstadisticasPage({
     rango: (searchParams.rango as "30" | "todo") || "30",
   };
 
+  const session = await getServerSession(authOptions);
+  const inicioHref = (session?.user as any)?.rol === "COBRADOR" ? "/mi/pendientes" : "/dashboard";
+
   const datos = await obtenerTotalesDiarios(filtros);
   const duraciones = await obtenerDuracionesContenedores();
 
@@ -27,7 +32,7 @@ export default async function EstadisticasPage({
   return (
     <div className="min-h-screen">
       <div className="bg-navy-950 text-white px-4.5 py-4 flex items-center justify-between sticky top-0 z-20">
-        <Link href="/dashboard" className="font-mono text-[13px] text-steel-light">
+        <Link href={inicioHref} className="font-mono text-[13px] text-steel-light">
           ← Inicio
         </Link>
         <div className="font-display font-semibold text-base">Estadísticas</div>

@@ -3,8 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { registrarActividad } from "@/lib/actividad";
-
-const ROLES_ADMIN = ["ADMIN", "SUPERADMIN"];
+import { tienePermiso } from "@/lib/permisos";
 
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
   const session = await getServerSession(authOptions);
@@ -14,13 +13,14 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
 
   const usuarioId = (session.user as any).id as string;
   const rol = (session.user as any).rol as string;
+  const permisos = (session.user as any).permisos as string[];
 
   const { cobradorId, contenedorId } = await req.json();
   if (!cobradorId && !contenedorId) {
     return NextResponse.json({ error: "Falta cobradorId o contenedorId" }, { status: 400 });
   }
 
-  if (!ROLES_ADMIN.includes(rol) && contenedorId) {
+  if (!tienePermiso(rol, permisos, "gestionar_pagos") && contenedorId) {
     return NextResponse.json({ error: "No autorizado" }, { status: 403 });
   }
 

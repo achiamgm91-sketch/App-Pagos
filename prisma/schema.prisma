@@ -35,6 +35,7 @@ model Usuario {
   rol                 Rol      @default(ADMIN)
   debeCambiarPassword Boolean  @default(false)
   verTodosPagos       Boolean  @default(false)
+  permisos            String[] @default([]) // ver los permisos disponibles en src/lib/permisos.ts
   creadoEn            DateTime @default(now())
 
   cobradorId String?   @unique

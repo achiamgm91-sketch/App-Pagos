@@ -9,6 +9,7 @@ import { registrarActividad } from "@/lib/actividad";
 import { procesarTrasImportar } from "@/lib/cierreAutomatico";
 import { filtrarPagosNuevos } from "@/lib/dedupPagos";
 import { cargarCadenaContenedores, elegirContenedor } from "@/lib/pagosBanco";
+import { tienePermiso } from "@/lib/permisos";
 import Papa from "papaparse";
 import * as XLSX from "xlsx";
 
@@ -27,8 +28,7 @@ export async function POST(req: NextRequest) {
   if (!session) {
     return NextResponse.json({ error: "No autorizado" }, { status: 401 });
   }
-  const rol = (session.user as any).rol as string;
-  if (!["ADMIN", "SUPERADMIN"].includes(rol)) {
+  if (!tienePermiso((session.user as any).rol, (session.user as any).permisos, "importar_pagos")) {
     return NextResponse.json({ error: "No autorizado" }, { status: 403 });
   }
   const usuarioId = (session.user as any).id as string;

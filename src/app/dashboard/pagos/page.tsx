@@ -30,6 +30,7 @@ export default async function PagosPorFechaPage({
 
   const session = await getServerSession(authOptions);
   const esSuperAdmin = (session?.user as any)?.rol === "SUPERADMIN";
+  const inicioHref = (session?.user as any)?.rol === "COBRADOR" ? "/mi/pendientes" : "/dashboard";
 
   const resultado = await obtenerPagosFiltrados(filtros, 1);
   const pagosSimplificados = resultado.pagos.map(simplificarPago);
@@ -47,7 +48,7 @@ export default async function PagosPorFechaPage({
   return (
     <div className="min-h-screen">
       <div className="bg-navy-950 text-white px-4.5 py-4 flex items-center justify-between sticky top-0 z-20">
-        <Link href="/dashboard" className="font-mono text-[13px] text-steel-light">
+        <Link href={inicioHref} className="font-mono text-[13px] text-steel-light">
           ← Inicio
         </Link>
         <div className="font-display font-semibold text-base">Pagos</div>
