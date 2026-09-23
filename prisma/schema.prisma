@@ -148,7 +148,7 @@ model RevolutToken {
 model SabadellSesion {
   id            String   @id @default(dbgenerated("gen_random_uuid()::text"))
   sessionId     String
-  accountUid    String
+  accountUids   String[] // puede haber varias cuentas autorizadas (p.ej. una en EUR y otra en USD)
   validaHasta   DateTime
   actualizadoEn DateTime @default(now())
 }

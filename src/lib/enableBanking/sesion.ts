@@ -53,15 +53,15 @@ export async function intercambiarCodigoPorSesion(code: string) {
     body: JSON.stringify({ code }),
   });
 
-  const cuenta = data.accounts?.[0];
-  if (!cuenta?.uid) {
+  const cuentas: string[] = (data.accounts || []).map((c: any) => c.uid).filter(Boolean);
+  if (cuentas.length === 0) {
     throw new Error("Enable Banking no ha devuelto ninguna cuenta autorizada");
   }
 
   const existente = await prisma.sabadellSesion.findFirst();
   const valores = {
     sessionId: data.session_id as string,
-    accountUid: cuenta.uid as string,
+    accountUids: cuentas,
     validaHasta: new Date(data.access.valid_until),
   };
 
@@ -74,7 +74,8 @@ export async function intercambiarCodigoPorSesion(code: string) {
   return valores;
 }
 
-export async function obtenerCuentaSabadellAutorizada(): Promise<string> {
+/** Puede haber varias cuentas autorizadas (p.ej. una en EUR y otra en USD). */
+export async function obtenerCuentasSabadellAutorizadas(): Promise<string[]> {
   const sesion = await prisma.sabadellSesion.findFirst();
   if (!sesion) {
     throw new Error(
@@ -86,7 +87,7 @@ export async function obtenerCuentaSabadellAutorizada(): Promise<string> {
       "La autorización con Sabadell ha caducado. Es necesario volver a conectar en /api/sabadell/authorize"
     );
   }
-  return sesion.accountUid;
+  return sesion.accountUids;
 }
 
 export { llamarEnableBanking };
