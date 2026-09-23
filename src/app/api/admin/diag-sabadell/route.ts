@@ -10,6 +10,17 @@ export async function GET(req: NextRequest) {
   const sesion = await prisma.sabadellSesion.findFirst();
   if (!sesion) return NextResponse.json({ error: "sin sesion" });
 
+  if (req.nextUrl.searchParams.get("accion") === "completar-cuentas") {
+    const detalle = await llamarEnableBanking(`/sessions/${sesion.sessionId}`);
+    const cuentas: string[] = detalle.accounts || [];
+    if (cuentas.length === 0) return NextResponse.json({ error: "Enable Banking no devolvió cuentas" });
+    const actualizado = await prisma.sabadellSesion.update({
+      where: { id: sesion.id },
+      data: { accountUids: cuentas },
+    });
+    return NextResponse.json({ ok: true, accountUids: actualizado.accountUids });
+  }
+
   let detalleCuentas: any = null;
   try {
     detalleCuentas = await llamarEnableBanking(`/sessions/${sesion.sessionId}`);
