@@ -36,6 +36,8 @@ model Usuario {
   debeCambiarPassword Boolean  @default(false)
   verTodosPagos       Boolean  @default(false)
   permisos            String[] @default([]) // ver los permisos disponibles en src/lib/permisos.ts
+  intentosFallidos    Int      @default(0)
+  bloqueadoHasta      DateTime? // login bloqueado hasta esta fecha tras varios intentos fallidos seguidos
   creadoEn            DateTime @default(now())
 
   cobradorId String?   @unique

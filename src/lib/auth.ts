@@ -3,6 +3,9 @@ import CredentialsProvider from "next-auth/providers/credentials";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
 
+const LIMITE_INTENTOS = 5;
+const MINUTOS_BLOQUEO = 15;
+
 export const authOptions: NextAuthOptions = {
   session: { strategy: "jwt" },
   pages: {
@@ -23,8 +26,32 @@ export const authOptions: NextAuthOptions = {
         });
         if (!user) return null;
 
+        if (user.bloqueadoHasta && user.bloqueadoHasta.getTime() > Date.now()) {
+          const minutos = Math.ceil((user.bloqueadoHasta.getTime() - Date.now()) / 60000);
+          throw new Error(
+            `Demasiados intentos fallidos. Vuelve a intentarlo en ${minutos} minuto${minutos === 1 ? "" : "s"}.`
+          );
+        }
+
         const valid = await bcrypt.compare(credentials.password, user.passwordHash);
-        if (!valid) return null;
+        if (!valid) {
+          const intentos = user.intentosFallidos + 1;
+          await prisma.usuario.update({
+            where: { id: user.id },
+            data:
+              intentos >= LIMITE_INTENTOS
+                ? { intentosFallidos: 0, bloqueadoHasta: new Date(Date.now() + MINUTOS_BLOQUEO * 60000) }
+                : { intentosFallidos: intentos },
+          });
+          return null;
+        }
+
+        if (user.intentosFallidos > 0 || user.bloqueadoHasta) {
+          await prisma.usuario.update({
+            where: { id: user.id },
+            data: { intentosFallidos: 0, bloqueadoHasta: null },
+          });
+        }
 
         return {
           id: user.id,

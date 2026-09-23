@@ -27,7 +27,7 @@ export default function LoginPage() {
     });
     setLoading(false);
     if (res?.error) {
-      setError("Usuario o contraseña incorrectos.");
+      setError(res.error === "CredentialsSignin" ? "Usuario o contraseña incorrectos." : res.error);
       return;
     }
     router.push("/");
