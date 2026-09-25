@@ -36,8 +36,9 @@ export async function sincronizarPagosSabadell(usuarioId: string, desdeParam?: s
   }
 
   const desde = desdeParam || (await calcularFechaSugeridaSabadell());
+  const hasta = fechaISO(new Date());
 
-  const { pagos: detectados, incompleto, motivoIncompleto } = await obtenerTransaccionesSabadell(desde);
+  const { pagos: detectados, incompleto, motivoIncompleto } = await obtenerTransaccionesSabadell(desde, hasta);
 
   if (incompleto) {
     await registrarActividad({
