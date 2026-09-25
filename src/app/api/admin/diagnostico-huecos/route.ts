@@ -60,6 +60,8 @@ export async function GET(req: NextRequest) {
         contenedor: p.contenedor?.nombre ?? null,
         contenedorEstado: p.contenedor?.estado ?? null,
         cobrador: p.cobrador?.nombre ?? null,
+        devuelto: p.devuelto,
+        devueltoNota: p.devueltoNota ?? null,
       })),
     });
   }
