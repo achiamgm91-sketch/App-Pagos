@@ -12,6 +12,36 @@ export async function GET(req: NextRequest) {
 
   const sesion = await prisma.sabadellSesion.findFirst();
 
+  const fechaParam = req.nextUrl.searchParams.get("fecha");
+  if (fechaParam) {
+    const pagosDia = await prisma.pago.findMany({
+      where: { fecha: new Date(`${fechaParam}T00:00:00Z`) },
+      select: {
+        persona: true,
+        banco: true,
+        importeEur: true,
+        importeUsd: true,
+        idOrigen: true,
+        fechaHoraBanco: true,
+        creadoEn: true,
+      },
+      orderBy: { fechaHoraBanco: "asc" },
+    });
+    return NextResponse.json({
+      fecha: fechaParam,
+      total: pagosDia.length,
+      pagos: pagosDia.map((p) => ({
+        persona: p.persona,
+        banco: p.banco,
+        importeEur: p.importeEur ? Number(p.importeEur) : null,
+        importeUsd: p.importeUsd ? Number(p.importeUsd) : null,
+        idOrigen: p.idOrigen,
+        fechaHoraBanco: p.fechaHoraBanco?.toISOString() ?? null,
+        creadoEn: p.creadoEn.toISOString(),
+      })),
+    });
+  }
+
   const desde = new Date("2026-09-15T00:00:00Z");
   const pagos = await prisma.pago.findMany({
     where: { fecha: { gte: desde } },
