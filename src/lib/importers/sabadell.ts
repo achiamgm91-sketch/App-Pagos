@@ -54,7 +54,9 @@ export function procesarSabadell(filas: FilaCruda[]): PagoDetectado[] {
     if (!concepto) continue;
     if (concepto.toUpperCase().includes("BOOMERANG")) continue; // traspaso interno propio
 
-    const importe = parseFloat(String(fila["Importe"]).replace(",", "."));
+    // El Excel de Sabadell usa coma como separador de miles y punto como decimal
+    // (p.ej. "1,000.00"), no formato español: hay que quitar las comas, no cambiarlas por puntos.
+    const importe = parseFloat(String(fila["Importe"]).replace(/,/g, ""));
     if (!importe || importe <= 0) continue;
 
     const persona = extraerPersona(concepto);

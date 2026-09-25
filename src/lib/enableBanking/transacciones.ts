@@ -38,7 +38,16 @@ function extraerPersona(t: TransaccionEB): string {
   return remesa.toUpperCase();
 }
 
-export async function obtenerTransaccionesSabadell(desde?: string, hasta?: string): Promise<PagoDetectado[]> {
+export type ResultadoTransaccionesSabadell = {
+  pagos: PagoDetectado[];
+  incompleto: boolean;
+  motivoIncompleto?: string;
+};
+
+export async function obtenerTransaccionesSabadell(
+  desde?: string,
+  hasta?: string
+): Promise<ResultadoTransaccionesSabadell> {
   const accountUids = await obtenerCuentasSabadellAutorizadas();
 
   const params = new URLSearchParams();
@@ -46,12 +55,34 @@ export async function obtenerTransaccionesSabadell(desde?: string, hasta?: strin
   if (hasta) params.set("date_to", hasta);
 
   const resultado: PagoDetectado[] = [];
+  let incompleto = false;
+  let motivoIncompleto: string | undefined;
 
   // Puede haber varias cuentas autorizadas (p.ej. una en EUR y otra en USD); cada una
-  // cuenta como una consulta más contra el límite diario de Sabadell.
+  // cuenta como una consulta más contra el límite diario de Sabadell. Enable Banking
+  // pagina los resultados con continuation_key: si no se sigue, se pierden en silencio
+  // las transacciones que no caben en la primera página (esto pasó de verdad el 23/9).
   for (const accountUid of accountUids) {
-    const data = await llamarEnableBanking(`/accounts/${accountUid}/transactions?${params.toString()}`);
-    const transacciones: TransaccionEB[] = data.transactions || [];
+    let continuationKey: string | undefined;
+    const transacciones: TransaccionEB[] = [];
+
+    do {
+      const url = continuationKey
+        ? `/accounts/${accountUid}/transactions?${params.toString()}&continuation_key=${encodeURIComponent(continuationKey)}`
+        : `/accounts/${accountUid}/transactions?${params.toString()}`;
+
+      let data: any;
+      try {
+        data = await llamarEnableBanking(url);
+      } catch (e: any) {
+        incompleto = true;
+        motivoIncompleto = e.message;
+        break;
+      }
+
+      transacciones.push(...(data.transactions || []));
+      continuationKey = data.continuation_key || undefined;
+    } while (continuationKey);
 
     for (const t of transacciones) {
       if (t.credit_debit_indicator !== "CRDT") continue;
@@ -84,5 +115,5 @@ export async function obtenerTransaccionesSabadell(desde?: string, hasta?: strin
     }
   }
 
-  return resultado;
+  return { pagos: resultado, incompleto, motivoIncompleto };
 }

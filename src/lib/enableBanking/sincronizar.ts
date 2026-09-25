@@ -4,6 +4,7 @@ import { obtenerTasasOrdenadas, buscarTasaConFecha } from "@/lib/tipoCambio";
 import { filtrarPagosNuevos } from "@/lib/dedupPagos";
 import { procesarTrasImportar } from "@/lib/cierreAutomatico";
 import { cargarCadenaContenedores, elegirContenedor, completarHorasBanco } from "@/lib/pagosBanco";
+import { registrarActividad } from "@/lib/actividad";
 
 function fechaISO(d: Date) {
   return d.toISOString().slice(0, 10);
@@ -36,7 +37,16 @@ export async function sincronizarPagosSabadell(usuarioId: string, desdeParam?: s
 
   const desde = desdeParam || (await calcularFechaSugeridaSabadell());
 
-  const detectados = await obtenerTransaccionesSabadell(desde);
+  const { pagos: detectados, incompleto, motivoIncompleto } = await obtenerTransaccionesSabadell(desde);
+
+  if (incompleto) {
+    await registrarActividad({
+      usuarioId,
+      accion: "sabadell_sincronizacion_incompleta",
+      entidad: "Sincronizacion",
+      detalle: `La sincronización con Sabadell desde ${desde} se cortó antes de terminar: ${motivoIncompleto}. Vuelve a intentarlo (p.ej. mañana si es el límite diario de consultas) para completar los pagos que falten.`,
+    });
+  }
 
   const cadena = await cargarCadenaContenedores();
   const asignados = detectados.map((d) => ({
