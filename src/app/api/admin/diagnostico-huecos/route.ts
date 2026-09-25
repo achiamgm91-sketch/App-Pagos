@@ -42,6 +42,41 @@ export async function GET(req: NextRequest) {
     });
   }
 
+  if (req.nextUrl.searchParams.get("contenedores") === "1") {
+    const contenedores = await prisma.contenedor.findMany({
+      select: {
+        id: true,
+        nombre: true,
+        estado: true,
+        saldoInicial: true,
+        monedaSaldoInicial: true,
+        totalFactura: true,
+        monedaTotalFactura: true,
+        fechaInicio: true,
+      },
+      orderBy: { fechaInicio: "asc" },
+    });
+    const conTotales = await Promise.all(
+      contenedores.map(async (c) => {
+        const suma = await prisma.pago.aggregate({
+          where: { contenedorId: c.id, devuelto: false },
+          _sum: { importeEur: true, importeUsd: true },
+        });
+        return {
+          nombre: c.nombre,
+          estado: c.estado,
+          saldoInicial: Number(c.saldoInicial),
+          monedaSaldoInicial: c.monedaSaldoInicial,
+          totalFactura: Number(c.totalFactura),
+          monedaTotalFactura: c.monedaTotalFactura,
+          sumaPagosEur: suma._sum.importeEur ? Number(suma._sum.importeEur) : 0,
+          sumaPagosUsd: suma._sum.importeUsd ? Number(suma._sum.importeUsd) : 0,
+        };
+      })
+    );
+    return NextResponse.json({ contenedores: conTotales });
+  }
+
   if (req.nextUrl.searchParams.get("todosPagos") === "1") {
     const todos = await prisma.pago.findMany({
       include: { contenedor: { select: { nombre: true, estado: true } }, cobrador: { select: { nombre: true } } },
