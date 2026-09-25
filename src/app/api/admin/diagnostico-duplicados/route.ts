@@ -2,7 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
 export async function GET(req: NextRequest) {
-  if (req.headers.get("authorization") !== `Bearer ${process.env.CRON_SECRET}`) {
+  const auth = req.headers.get("authorization");
+  const autorizado =
+    (!!process.env.CRON_SECRET && auth === `Bearer ${process.env.CRON_SECRET}`) ||
+    (!!process.env.DIAG_SECRET && auth === `Bearer ${process.env.DIAG_SECRET}`);
+  if (!autorizado) {
     return NextResponse.json({ error: "No autorizado" }, { status: 401 });
   }
 
