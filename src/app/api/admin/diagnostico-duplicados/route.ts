@@ -15,6 +15,11 @@ export async function GET(req: NextRequest) {
     orderBy: { fecha: "asc" },
   });
 
+  const contenedores = await prisma.contenedor.findMany({
+    select: { id: true, nombre: true, estado: true, totalFactura: true, monedaTotalFactura: true },
+    orderBy: { fechaInicio: "asc" },
+  });
+
   type Grupo = {
     clave: string;
     pagos: any[];
@@ -40,6 +45,13 @@ export async function GET(req: NextRequest) {
   return NextResponse.json({
     totalPagos: pagos.length,
     gruposSospechosos: sospechosos.length,
+    contenedores: contenedores.map((c) => ({
+      id: c.id,
+      nombre: c.nombre,
+      estado: c.estado,
+      totalFactura: Number(c.totalFactura),
+      monedaTotalFactura: c.monedaTotalFactura,
+    })),
     detalle: sospechosos.map((g) => ({
       clave: g.clave,
       pagos: g.pagos.map((p) => ({
