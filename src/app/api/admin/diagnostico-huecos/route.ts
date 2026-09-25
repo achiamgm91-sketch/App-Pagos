@@ -42,6 +42,23 @@ export async function GET(req: NextRequest) {
     });
   }
 
+  if (req.nextUrl.searchParams.get("todoSabadell") === "1") {
+    const pagosSabadell = await prisma.pago.findMany({
+      where: { banco: "Sabadell" },
+      select: { persona: true, fecha: true, importeEur: true },
+      orderBy: { fecha: "asc" },
+    });
+    return NextResponse.json({
+      total: pagosSabadell.length,
+      primeraFecha: pagosSabadell[0]?.fecha.toISOString().slice(0, 10) ?? null,
+      pagos: pagosSabadell.map((p) => ({
+        persona: p.persona,
+        fecha: p.fecha.toISOString().slice(0, 10),
+        importeEur: p.importeEur ? Number(p.importeEur) : null,
+      })),
+    });
+  }
+
   const desde = new Date("2026-09-15T00:00:00Z");
   const pagos = await prisma.pago.findMany({
     where: { fecha: { gte: desde } },
