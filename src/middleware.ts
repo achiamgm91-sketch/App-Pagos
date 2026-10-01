@@ -40,7 +40,9 @@ export async function middleware(req: NextRequest) {
   }
 
   if (
-    (pathname.startsWith("/dashboard/actividad") || pathname.startsWith("/dashboard/devoluciones")) &&
+    (pathname.startsWith("/dashboard/actividad") ||
+      pathname.startsWith("/dashboard/devoluciones") ||
+      pathname.startsWith("/dashboard/pagos/nuevo")) &&
     token.rol !== "SUPERADMIN"
   ) {
     return NextResponse.redirect(new URL("/dashboard", req.url));

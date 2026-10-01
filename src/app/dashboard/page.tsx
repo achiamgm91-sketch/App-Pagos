@@ -164,6 +164,12 @@ export default async function DashboardPage({
             >
               <span>↩️</span> Devoluciones
             </Link>
+            <Link
+              href="/dashboard/pagos/nuevo"
+              className="flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-steel-light text-[13.5px] font-medium hover:bg-white/5"
+            >
+              <span>✍️</span> Añadir pago a mano
+            </Link>
           </>
         )}
       </div>
