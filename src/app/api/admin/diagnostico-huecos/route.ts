@@ -100,6 +100,9 @@ export async function GET(req: NextRequest) {
         cobrador: p.cobrador?.nombre ?? null,
         devuelto: p.devuelto,
         devueltoNota: p.devueltoNota ?? null,
+        monedaOriginal: p.monedaOriginal,
+        tasaCambio: p.tasaCambio ? Number(p.tasaCambio) : null,
+        contenedorId: p.contenedorId,
       })),
     });
   }
