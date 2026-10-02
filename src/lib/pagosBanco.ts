@@ -52,7 +52,12 @@ export function elegirContenedor(
 ): ContenedorAsignable | null {
   for (const c of cadena) {
     if (!c.inicioBanco) {
-      return pago.fecha >= fechaISO(c.fechaInicio) ? c : null;
+      // Si no alcanza el inicio de este contenedor clásico, puede que pertenezca a
+      // uno anterior de la cadena (p.ej. un pago con fecha real atrasada que el
+      // banco no reporta hasta después de que ya se abrió el contenedor siguiente);
+      // antes se descartaba aquí mismo sin seguir mirando hacia atrás.
+      if (pago.fecha >= fechaISO(c.fechaInicio)) return c;
+      continue;
     }
     const posteriorAlCorte = pago.fechaHoraBanco
       ? new Date(pago.fechaHoraBanco).getTime() > c.inicioBanco.getTime()
