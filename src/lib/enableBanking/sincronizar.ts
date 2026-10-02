@@ -121,5 +121,7 @@ export async function sincronizarPagosSabadell(usuarioId: string, desdeParam?: s
     sinTasa,
     pagosNuevos: pagosNuevosResumen,
     cierre,
+    incompleto,
+    motivoIncompleto,
   };
 }

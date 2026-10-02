@@ -49,9 +49,23 @@ type ResultadoSabadell = {
   anterioresAlInicio: number;
   sinTasa: number;
   pagosNuevos: PagoResumen[];
+  incompleto?: boolean;
+  motivoIncompleto?: string;
 };
 
-type Resultado = ResultadoPagos | ResultadoTipoCambio | ResultadoRevolut | ResultadoSabadell;
+type ResultadoWise = {
+  tipo: "wise";
+  contenedor: string;
+  desdeUsado: string;
+  totalWise: number;
+  nuevos: number;
+  duplicados: number;
+  anterioresAlInicio: number;
+  sinTasa: number;
+  pagosNuevos: PagoResumen[];
+};
+
+type Resultado = ResultadoPagos | ResultadoTipoCambio | ResultadoRevolut | ResultadoSabadell | ResultadoWise;
 
 type UltimoPagoBanco = {
   banco: string;
@@ -167,6 +181,7 @@ export default function ImportarClient({
   ultimosPorBanco,
   fechaSugeridaRevolut,
   fechaSugeridaSabadell,
+  fechaSugeridaWise,
   sabadellConectado,
   ultimaEjecucionCron,
   ultimaEjecucionManual,
@@ -176,6 +191,7 @@ export default function ImportarClient({
   ultimosPorBanco: UltimoPagoBanco[];
   fechaSugeridaRevolut: string;
   fechaSugeridaSabadell: string;
+  fechaSugeridaWise: string;
   sabadellConectado: boolean;
   ultimaEjecucionCron: EjecucionBCE | null;
   ultimaEjecucionManual: EjecucionBCE | null;
@@ -192,6 +208,9 @@ export default function ImportarClient({
   const [errorSabadell, setErrorSabadell] = useState<string | null>(null);
   const [fechaDesdeSabadell, setFechaDesdeSabadell] = useState(fechaSugeridaSabadell);
   const [avisoSabadell, setAvisoSabadell] = useState<string | null>(null);
+  const [cargandoWise, setCargandoWise] = useState(false);
+  const [errorWise, setErrorWise] = useState<string | null>(null);
+  const [fechaDesdeWise, setFechaDesdeWise] = useState(fechaSugeridaWise);
   const [resultado, setResultado] = useState<Resultado | null>(null);
   const [ultimaFecha, setUltimaFecha] = useState<string | null>(ultimaFechaTipoCambio);
   const [porBanco, setPorBanco] = useState(ultimosPorBanco);
@@ -313,6 +332,33 @@ export default function ImportarClient({
       setErrorSabadell("No se ha podido conectar con el servidor. Inténtalo de nuevo.");
     } finally {
       setCargandoSabadell(false);
+    }
+  }
+
+  async function sincronizarWise() {
+    setCargandoWise(true);
+    setErrorWise(null);
+    setResultado(null);
+
+    try {
+      const res = await fetch("/api/wise/sincronizar", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ desde: fechaDesdeWise }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setErrorWise(data.error || "Error al sincronizar con Wise");
+      } else {
+        setResultado({ tipo: "wise", ...data });
+        if (data.pagosNuevos?.length > 0) {
+          actualizarUltimoPorBanco("Wise", data.pagosNuevos);
+        }
+      }
+    } catch (e) {
+      setErrorWise("No se ha podido conectar con el servidor. Inténtalo de nuevo.");
+    } finally {
+      setCargandoWise(false);
     }
   }
 
@@ -485,6 +531,33 @@ export default function ImportarClient({
           </div>
         )}
 
+        {/* Botón de sincronización manual con Wise */}
+        <div className="mb-1 flex items-center gap-2">
+          <button
+            onClick={sincronizarWise}
+            disabled={cargandoWise}
+            className="flex-1 py-3 bg-white border border-line rounded-lg text-[13.5px] font-semibold flex items-center justify-center gap-2 disabled:opacity-60"
+          >
+            <span>🔄</span>
+            {cargandoWise ? "Buscando..." : "Buscar pagos nuevos en Wise"}
+          </button>
+          <input
+            type="date"
+            value={fechaDesdeWise}
+            onChange={(e) => setFechaDesdeWise(e.target.value)}
+            className="border border-line rounded-lg px-2 py-3 text-[13px] font-mono bg-white w-[132px]"
+          />
+        </div>
+        <div className="text-[11.5px] text-steel mb-4 font-mono">
+          Buscando pagos desde el {formatFecha(fechaDesdeWise)}
+        </div>
+
+        {errorWise && (
+          <div className="mb-5 bg-alert-bg border border-[#F3C9C9] rounded-xl p-3.5 text-[13.5px] text-[#8A2E2E]">
+            {errorWise}
+          </div>
+        )}
+
         {/* Zona de selección de fichero */}
         <div
           onClick={() => inputRef.current?.click()}
@@ -618,13 +691,55 @@ export default function ImportarClient({
 
         {resultado && resultado.tipo === "sabadell" && (
           <div className="mt-5">
+            {resultado.incompleto && (
+              <div className="bg-alert-bg border border-[#F3C9C9] rounded-xl p-4 mb-4">
+                <div className="font-display font-semibold text-[15px] text-[#8A2E2E] mb-1">
+                  No se terminó de revisar todo
+                </div>
+                <div className="text-[13px] text-[#8A2E2E]">
+                  {resultado.motivoIncompleto || "La sincronización se cortó antes de terminar."} Lo que se
+                  encontró hasta ese punto se guardó igual, pero puede que falten pagos — vuelve a intentarlo
+                  más tarde.
+                </div>
+              </div>
+            )}
             <div className="bg-teal-bg border border-[#CDE9DF] rounded-xl p-4 mb-4">
               <div className="font-display font-semibold text-[15px] text-[#0F5D45] mb-2">
-                Sincronización con Sabadell completada
+                {resultado.incompleto ? "Sincronización parcial con Sabadell" : "Sincronización con Sabadell completada"}
               </div>
               <div className="text-[13px] text-[#0F5D45] space-y-1 font-mono">
                 <div>Contenedor: {resultado.contenedor}</div>
                 <div>Transacciones en Sabadell: {resultado.totalSabadell}</div>
+                <div>Buscado desde: {formatFecha(resultado.desdeUsado)}</div>
+                <div>✓ Pagos nuevos importados: {resultado.nuevos}</div>
+                <div>· Duplicados (ya existían): {resultado.duplicados}</div>
+                {resultado.anterioresAlInicio > 0 && (
+                  <div>· Descartados por ser anteriores al inicio del contenedor: {resultado.anterioresAlInicio}</div>
+                )}
+                {resultado.sinTasa > 0 && <div>⚠ Sin tipo de cambio ese día: {resultado.sinTasa}</div>}
+              </div>
+            </div>
+
+            {resultado.pagosNuevos.length > 0 && <ListaPagosNuevos pagos={resultado.pagosNuevos} />}
+
+            <Link
+              href={inicioHref}
+              className="block text-center mt-5 py-3 bg-navy-950 text-white font-semibold text-[13.5px] rounded-lg"
+            >
+              Ir al Inicio y asignar cobradores
+            </Link>
+          </div>
+        )}
+
+        {resultado && resultado.tipo === "wise" && (
+          <div className="mt-5">
+            <div className="bg-teal-bg border border-[#CDE9DF] rounded-xl p-4 mb-4">
+              <div className="font-display font-semibold text-[15px] text-[#0F5D45] mb-2">
+                Sincronización con Wise completada
+              </div>
+              <div className="text-[13px] text-[#0F5D45] space-y-1 font-mono">
+                <div>Contenedor: {resultado.contenedor}</div>
+                <div>Transacciones en Wise: {resultado.totalWise}</div>
                 <div>Buscado desde: {formatFecha(resultado.desdeUsado)}</div>
                 <div>✓ Pagos nuevos importados: {resultado.nuevos}</div>
                 <div>· Duplicados (ya existían): {resultado.duplicados}</div>
