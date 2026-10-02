@@ -9,7 +9,7 @@ export const BANCO_AJUSTE = "Ajuste";
 const round2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
 const DIAS_MAX_CRUCE = 10;
 
-type PagoParaAjuste = {
+export type PagoParaAjuste = {
   id: string;
   fecha: Date;
   tasaCambio: Prisma.Decimal | null;
@@ -27,7 +27,7 @@ type PagoParaAjuste = {
  * automático y por el recuadre tras una devolución, que hacían exactamente
  * lo mismo por separado.
  */
-async function aplicarCruce(
+export async function aplicarCruce(
   tx: Prisma.TransactionClient,
   contenedorOrigenId: string,
   siguienteId: string,
