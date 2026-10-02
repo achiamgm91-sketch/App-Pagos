@@ -53,6 +53,7 @@ export async function GET(req: NextRequest) {
         totalFactura: true,
         monedaTotalFactura: true,
         fechaInicio: true,
+        inicioBanco: true,
       },
       orderBy: { fechaInicio: "asc" },
     });
@@ -66,6 +67,7 @@ export async function GET(req: NextRequest) {
           nombre: c.nombre,
           estado: c.estado,
           fechaInicio: c.fechaInicio.toISOString().slice(0, 10),
+          inicioBanco: c.inicioBanco ? c.inicioBanco.toISOString() : null,
           saldoInicial: Number(c.saldoInicial),
           monedaSaldoInicial: c.monedaSaldoInicial,
           totalFactura: Number(c.totalFactura),
