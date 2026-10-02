@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { bancosSoportados } from "@/lib/importers";
 import { calcularFechaSugeridaRevolut } from "@/lib/revolut/sincronizar";
 import { calcularFechaSugeridaSabadell } from "@/lib/enableBanking/sincronizar";
+import { calcularFechaSugeridaWise } from "@/lib/wise/sincronizar";
 import ImportarClient from "@/components/ImportarClient";
 import { ORDEN_BANCO_DESC, ORDEN_BANCO_ASC } from "@/lib/pagosBanco";
 import { getServerSession } from "next-auth";
@@ -31,7 +32,8 @@ export default async function ImportarPage() {
   const ultimo = await prisma.tipoCambioDia.aggregate({ _max: { fecha: true } });
   const ultimaFechaTipoCambio = ultimo._max.fecha ? ultimo._max.fecha.toISOString().slice(0, 10) : null;
 
-  const bancos = bancosSoportados();
+  // "Wise" no tiene parser de fichero (solo sincronización por API), se añade aparte.
+  const bancos = Array.from(new Set([...bancosSoportados(), "Wise"]));
   const ultimosPorBanco = await Promise.all(
     bancos.map(async (banco) => {
       const p = await prisma.pago.findFirst({
@@ -50,6 +52,7 @@ export default async function ImportarPage() {
 
   const fechaSugeridaRevolut = await calcularFechaSugeridaRevolut();
   const fechaSugeridaSabadell = await calcularFechaSugeridaSabadell();
+  const fechaSugeridaWise = await calcularFechaSugeridaWise();
   const sesionSabadell = await prisma.sabadellSesion.findFirst();
   const sabadellConectado = !!sesionSabadell && sesionSabadell.validaHasta.getTime() > Date.now();
 
@@ -70,6 +73,7 @@ export default async function ImportarPage() {
       ultimosPorBanco={ultimosPorBanco}
       fechaSugeridaRevolut={fechaSugeridaRevolut}
       fechaSugeridaSabadell={fechaSugeridaSabadell}
+      fechaSugeridaWise={fechaSugeridaWise}
       sabadellConectado={sabadellConectado}
       ultimaEjecucionCron={serializarEjecucion(ultimaEjecucionCronRaw)}
       ultimaEjecucionManual={serializarEjecucion(ultimaEjecucionManualRaw)}
