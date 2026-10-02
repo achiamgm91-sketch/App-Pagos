@@ -4,7 +4,7 @@ import { esFicheroSabadell, procesarSabadell } from "./sabadell";
 type Parser = {
   banco: string;
   detecta: (headers: string[]) => boolean;
-  procesa: (filas: FilaCruda[]) => PagoDetectado[];
+  procesa: (filas: FilaCruda[], metadatos?: any[][]) => PagoDetectado[];
 };
 
 const PARSERS: Parser[] = [

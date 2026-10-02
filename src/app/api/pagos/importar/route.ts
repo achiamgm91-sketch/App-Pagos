@@ -88,13 +88,14 @@ export async function POST(req: NextRequest) {
   }
   const { parser, filaCabeceraIndex } = deteccion;
   const filas = filasCrudasAObjetos(grid, filaCabeceraIndex);
+  const metadatos = grid.slice(0, filaCabeceraIndex);
 
   const contenedor = await prisma.contenedor.findFirst({ where: { estado: "ACTIVO" } });
   if (!contenedor) {
     return NextResponse.json({ error: "No hay ningún contenedor activo al que asignar los pagos" }, { status: 400 });
   }
 
-  const detectados = parser.procesa(filas);
+  const detectados = parser.procesa(filas, metadatos);
 
   if (detectados.length === 0) {
     return NextResponse.json({

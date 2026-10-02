@@ -46,7 +46,24 @@ function normalizarFecha(valor: any): string | null {
   return null;
 }
 
-export function procesarSabadell(filas: FilaCruda[]): PagoDetectado[] {
+/** Busca la fila "Divisa: EUR/USD" en las filas de metadatos previas a la cabecera.
+ * Sabadell exporta un fichero distinto por cada cuenta (EUR y USD), y la moneda real
+ * de los importes es la de la cuenta, no siempre EUR. */
+function extraerDivisa(metadatos?: any[][]): string {
+  if (!metadatos) return "EUR";
+  for (const fila of metadatos) {
+    if (!fila) continue;
+    const etiqueta = String(fila[0] ?? "").trim().toUpperCase();
+    if (etiqueta.startsWith("DIVISA")) {
+      const valor = String(fila[1] ?? "").trim().toUpperCase();
+      if (valor === "USD" || valor === "EUR") return valor;
+    }
+  }
+  return "EUR";
+}
+
+export function procesarSabadell(filas: FilaCruda[], metadatos?: any[][]): PagoDetectado[] {
+  const moneda = extraerDivisa(metadatos);
   const resultado: PagoDetectado[] = [];
 
   for (const fila of filas) {
@@ -78,7 +95,7 @@ export function procesarSabadell(filas: FilaCruda[]): PagoDetectado[] {
       fecha,
       persona,
       importe,
-      moneda: "EUR",
+      moneda,
       banco: "Sabadell",
     });
   }
