@@ -102,6 +102,19 @@ export async function GET(req: NextRequest) {
     });
   }
 
+  if (req.nextUrl.searchParams.get("actividad") === "1") {
+    const accion = req.nextUrl.searchParams.get("accion") || undefined;
+    const registros = await prisma.registroActividad.findMany({
+      where: accion ? { accion } : undefined,
+      orderBy: { creadoEn: "desc" },
+      take: 200,
+    });
+    return NextResponse.json({
+      total: registros.length,
+      registros: registros.map((a) => ({ creadoEn: a.creadoEn.toISOString(), accion: a.accion, detalle: a.detalle })),
+    });
+  }
+
   if (req.nextUrl.searchParams.get("todoSabadell") === "1") {
     const pagosSabadell = await prisma.pago.findMany({
       where: { banco: "Sabadell" },
