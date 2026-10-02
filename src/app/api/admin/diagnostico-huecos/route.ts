@@ -65,6 +65,7 @@ export async function GET(req: NextRequest) {
         return {
           nombre: c.nombre,
           estado: c.estado,
+          fechaInicio: c.fechaInicio.toISOString().slice(0, 10),
           saldoInicial: Number(c.saldoInicial),
           monedaSaldoInicial: c.monedaSaldoInicial,
           totalFactura: Number(c.totalFactura),
