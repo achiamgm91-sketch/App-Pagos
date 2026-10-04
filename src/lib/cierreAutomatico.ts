@@ -265,9 +265,18 @@ export async function recuadrarContenedorConSiguiente(
   if (!ajuste?.idOrigen?.startsWith("AJUSTE:")) return []; // este contenedor no originó un corte: nada que recuadrar
 
   const pagoCrucePrevio = await prisma.pago.findUnique({ where: { id: ajuste.idOrigen.slice("AJUSTE:".length) } });
-  if (!pagoCrucePrevio?.fechaHoraBanco) return [];
+  if (!pagoCrucePrevio) return [];
 
-  const siguiente = await prisma.contenedor.findFirst({ where: { inicioBanco: pagoCrucePrevio.fechaHoraBanco } });
+  // El pago que originó el corte puede no tener fechaHoraBanco si se dio de alta a
+  // mano (p.ej. un banco sin importador automático, como BBVA): en ese caso no hay
+  // instante exacto por el que localizar el contenedor siguiente por "inicioBanco",
+  // así que se busca por la secuencia numerada, igual que en el camino sin corte
+  // automático (ajustarSaldoInicialSiguiente). Sin esto, la cadena de recuadre se
+  // paraba en silencio justo en el corte manual y nunca repartía pagos entre ambos
+  // contenedores (solo se ajustaba el saldo inicial del siguiente).
+  const siguiente = pagoCrucePrevio.fechaHoraBanco
+    ? await prisma.contenedor.findFirst({ where: { inicioBanco: pagoCrucePrevio.fechaHoraBanco } })
+    : await buscarContenedorSiguienteEnSecuencia(contenedor);
   if (!siguiente) return [];
 
   const moneda = contenedor.monedaTotalFactura === "EUR" ? "EUR" : "USD";
