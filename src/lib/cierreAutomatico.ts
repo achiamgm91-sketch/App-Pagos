@@ -7,7 +7,6 @@ import { calcularCruce, siguienteNombre, extraerNumeroContenedor } from "@/lib/c
 
 export const BANCO_AJUSTE = "Ajuste";
 const round2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
-const DIAS_MAX_CRUCE = 10;
 
 export type PagoParaAjuste = {
   id: string;
@@ -148,23 +147,6 @@ export async function cerrarContenedorSiCompleto(): Promise<ResultadoCierre | nu
   if (!cruce) return null;
 
   const pagoCruce = pagosContables[cruce.indice];
-  const limite = new Date();
-  limite.setDate(limite.getDate() - DIAS_MAX_CRUCE);
-  if (pagoCruce.fecha < limite) {
-    // El pago que cruza el total es demasiado antiguo (probable cron caído varios
-    // días): no reordenamos histórico solo, pero lo dejamos anotado para que se
-    // revise a mano, en vez de fallar en silencio.
-    const usuarioSistema = await obtenerOcrearUsuarioCron();
-    await registrarActividad({
-      usuarioId: usuarioSistema.id,
-      accion: "cierre_automatico_pendiente",
-      entidad: "Contenedor",
-      entidadId: activo.id,
-      detalle: `"${activo.nombre}" ya alcanzó su total, pero el pago que lo completa es de hace más de ${DIAS_MAX_CRUCE} días (${pagoCruce.fecha.toISOString().slice(0, 10)}); hay que completarlo a mano.`,
-    });
-    return null;
-  }
-
   const usuarioSistema = await obtenerOcrearUsuarioCron();
 
   const resultado = await prisma.$transaction(async (tx) => {
