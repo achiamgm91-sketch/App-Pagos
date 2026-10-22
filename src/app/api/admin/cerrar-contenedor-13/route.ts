@@ -1,11 +1,10 @@
-// Endpoint temporal de un solo uso: el Contenedor 13 se marcó "Completado" a
-// mano (con el botón "Completar", que no mueve pagos) mientras "Arroz
-// Boomerang 3" ya era el contenedor activo de verdad. El excedente del 13
-// (5.221,77 $) quedó huérfano, sin pasar a ningún sitio. Este endpoint
-// recalcula el pago real que cruza el total del Contenedor 13 (en orden de
-// banco, igual que el cierre automático) y, solo si se confirma, cierra el
-// Contenedor 13 con su fila de ajuste y SUMA el excedente al saldo inicial
-// que ya tiene Arroz Boomerang 3 (sin pisarlo).
+// Herramienta permanente de SUPERADMIN (nacida como corrección puntual del
+// Contenedor 13, que se marcó "Completado" a mano sin mover sus pagos):
+// recalcula el pago real que cruza el total del contenedor de origen (en
+// orden de banco, igual que el cierre automático) y, solo si se confirma,
+// lo cierra, sustituye cualquier fila de Ajuste antigua que ya tuviera, suma
+// el excedente al saldo inicial del destino (sin pisarlo) y le reasigna los
+// pagos posteriores al que cruza.
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
