@@ -5,6 +5,7 @@ import Link from "next/link";
 
 type Calculo = {
   origen: string;
+  estadoOrigenAntes: string;
   destino: string;
   ajustesPreviosQueSeSustituiran: { id: string; fecha: string; importeEur: number | null; importeUsd: number | null; idOrigen: string }[];
   totalFacturaOrigen: number;
@@ -37,17 +38,24 @@ type Resultado = {
 };
 
 export default function CerrarContenedor13Page() {
+  const [origen, setOrigen] = useState("Contenedor 13");
+  const [destino, setDestino] = useState("Arroz Boomerang 2");
   const [cargando, setCargando] = useState(false);
   const [calculo, setCalculo] = useState<Calculo | null>(null);
   const [resultado, setResultado] = useState<Resultado | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  function url() {
+    return `/api/admin/cerrar-contenedor-13?origen=${encodeURIComponent(origen)}&destino=${encodeURIComponent(destino)}`;
+  }
+
   async function calcular() {
     setCargando(true);
     setError(null);
     setCalculo(null);
+    setResultado(null);
     try {
-      const res = await fetch("/api/admin/cerrar-contenedor-13");
+      const res = await fetch(url());
       const data = await res.json();
       if (!res.ok) setError(data.error || "Error al calcular");
       else setCalculo(data);
@@ -58,11 +66,11 @@ export default function CerrarContenedor13Page() {
   }
 
   async function confirmar() {
-    if (!confirm("¿Confirmas cerrar el Contenedor 13 y mover el excedente a Arroz Boomerang 3? No se puede deshacer con un clic.")) return;
+    if (!confirm(`¿Confirmas cerrar "${origen}" y mover el excedente/pagos a "${destino}"? No se puede deshacer con un clic.`)) return;
     setCargando(true);
     setError(null);
     try {
-      const res = await fetch("/api/admin/cerrar-contenedor-13", { method: "POST" });
+      const res = await fetch(url(), { method: "POST" });
       const data = await res.json();
       if (!res.ok) setError(data.error || "Error al confirmar");
       else setResultado(data);
@@ -84,9 +92,25 @@ export default function CerrarContenedor13Page() {
 
       <main className="max-w-xl mx-auto w-full px-4 py-6">
         <p className="text-steel text-[13.5px] mb-5">
-          Corrección de un solo uso: calcula el pago real que cruza el total del Contenedor 13 y, si lo
-          confirmas, lo cierra sumando su excedente al saldo inicial de Arroz Boomerang 3 (sin pisarlo).
+          Corrección de un solo uso, paso a paso en cadena: escribe el contenedor de origen y el siguiente
+          de verdad en la cadena, calcula, revisa, y confirma. Repite con el siguiente salto si hace falta
+          (p.ej. primero Contenedor 13 → Arroz Boomerang 2, luego Arroz Boomerang 2 → Arroz Boomerang 3).
         </p>
+
+        <div className="space-y-2 mb-4">
+          <input
+            value={origen}
+            onChange={(e) => setOrigen(e.target.value)}
+            placeholder="Contenedor de origen (exacto)"
+            className="w-full border border-line rounded-lg px-3 py-2.5 text-[13.5px]"
+          />
+          <input
+            value={destino}
+            onChange={(e) => setDestino(e.target.value)}
+            placeholder="Contenedor de destino (exacto)"
+            className="w-full border border-line rounded-lg px-3 py-2.5 text-[13.5px]"
+          />
+        </div>
 
         <button
           onClick={calcular}
@@ -105,7 +129,7 @@ export default function CerrarContenedor13Page() {
         {calculo && !resultado && (
           <div className="bg-white border border-line rounded-xl p-4 mb-4 text-[13.5px] space-y-2">
             <div>
-              <b>{calculo.origen}</b> → <b>{calculo.destino}</b>
+              <b>{calculo.origen}</b> (estaba {calculo.estadoOrigenAntes}) → <b>{calculo.destino}</b>
             </div>
             {calculo.ajustesPreviosQueSeSustituiran.length > 0 && (
               <div className="bg-[#FFF8E6] border border-[#F0D98C] rounded-lg p-2.5">

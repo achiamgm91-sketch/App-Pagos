@@ -18,18 +18,19 @@ import { BANCO_AJUSTE } from "@/lib/cierreAutomatico";
 
 const round2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
 
-const NOMBRE_ORIGEN = "Contenedor 13";
-const NOMBRE_DESTINO = "Arroz Boomerang 3";
+const NOMBRE_ORIGEN_DEFECTO = "Contenedor 13";
+const NOMBRE_DESTINO_DEFECTO = "Arroz Boomerang 2";
 
-async function calcular() {
-  const origen = await prisma.contenedor.findFirst({ where: { nombre: NOMBRE_ORIGEN } });
-  if (!origen) throw new Error(`No existe "${NOMBRE_ORIGEN}"`);
-  if (origen.estado !== "ACTIVO") {
-    throw new Error(`"${NOMBRE_ORIGEN}" ya no está ACTIVO (está ${origen.estado}); revisar a mano, no reintentar.`);
-  }
+// Se sigue la cadena real paso a paso (13 → Arroz Boomerang 2 → Arroz Boomerang 3), no
+// se salta directamente al contenedor activo: si el origen (p.ej. Arroz Boomerang 2) ya
+// recibió este dinero de más, a él también le toca pasar lo que sobre al siguiente.
+async function calcular(nombreOrigen: string, nombreDestino: string) {
+  const origen = await prisma.contenedor.findFirst({ where: { nombre: nombreOrigen } });
+  if (!origen) throw new Error(`No existe "${nombreOrigen}"`);
 
-  const destino = await prisma.contenedor.findFirst({ where: { nombre: NOMBRE_DESTINO } });
-  if (!destino) throw new Error(`No existe "${NOMBRE_DESTINO}"`);
+  const destino = await prisma.contenedor.findFirst({ where: { nombre: nombreDestino } });
+  if (!destino) throw new Error(`No existe "${nombreDestino}"`);
+  if (destino.id === origen.id) throw new Error("Origen y destino no pueden ser el mismo contenedor.");
 
   const total = Number(origen.totalFactura);
   const moneda = origen.monedaTotalFactura === "EUR" ? "EUR" : "USD";
@@ -81,6 +82,7 @@ async function calcular() {
 
   return {
     origen,
+    estadoOrigenAntes: origen.estado,
     destino,
     moneda,
     objetivo,
@@ -107,11 +109,14 @@ export async function GET(req: NextRequest) {
   if (!session || (session.user as any).rol !== "SUPERADMIN") {
     return NextResponse.json({ error: "Solo un superadministrador" }, { status: 403 });
   }
+  const nombreOrigen = req.nextUrl.searchParams.get("origen") || NOMBRE_ORIGEN_DEFECTO;
+  const nombreDestino = req.nextUrl.searchParams.get("destino") || NOMBRE_DESTINO_DEFECTO;
   try {
-    const r = await calcular();
+    const r = await calcular(nombreOrigen, nombreDestino);
     return NextResponse.json({
       modo: "SOLO CALCULO, no se ha escrito nada",
       origen: r.origen.nombre,
+      estadoOrigenAntes: r.estadoOrigenAntes,
       destino: r.destino.nombre,
       ajustesPreviosQueSeSustituiran: r.ajustesPrevios,
       totalFacturaOrigen: Number(r.origen.totalFactura),
@@ -155,19 +160,21 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Solo un superadministrador" }, { status: 403 });
   }
   const usuarioId = (session.user as any).id as string;
+  const nombreOrigen = req.nextUrl.searchParams.get("origen") || NOMBRE_ORIGEN_DEFECTO;
+  const nombreDestino = req.nextUrl.searchParams.get("destino") || NOMBRE_DESTINO_DEFECTO;
 
   try {
-    const r = await calcular();
+    const r = await calcular(nombreOrigen, nombreDestino);
     const usuarioSistema = await obtenerOcrearUsuarioCron();
 
     const nuevoSaldoDestino = round2(Number(r.destino.saldoInicial) + r.excedenteEnMonedaDestino);
 
     const resultado = await prisma.$transaction(async (tx) => {
       const cerrado = await tx.contenedor.updateMany({
-        where: { id: r.origen.id, estado: "ACTIVO" },
+        where: { id: r.origen.id, estado: r.estadoOrigenAntes },
         data: { estado: "COMPLETADO", actualizadoPorId: usuarioId },
       });
-      if (cerrado.count === 0) throw new Error("Otro proceso lo cerró a la vez; no se ha tocado nada.");
+      if (cerrado.count === 0) throw new Error("Otro proceso lo cambió a la vez; no se ha tocado nada.");
 
       if (r.ajustesPrevios.length > 0) {
         await tx.pago.deleteMany({ where: { id: { in: r.ajustesPrevios.map((a) => a.id) } } });
