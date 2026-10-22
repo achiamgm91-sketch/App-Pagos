@@ -39,10 +39,11 @@ async function calcular() {
   };
 
   const pagos = await prisma.pago.findMany({ where: { contenedorId: origen.id }, orderBy: ORDEN_BANCO_ASC });
-  if (pagos.some((p) => p.banco === BANCO_AJUSTE)) {
-    throw new Error(`"${NOMBRE_ORIGEN}" ya tiene una fila de Ajuste; ya se procesó, no reintentar.`);
-  }
-  const pagosContables = pagos.filter((p) => !p.devuelto);
+  // Ya existe una fila de Ajuste de un cierre anterior (6/10), legítimo en su momento:
+  // el contenedor se reabrió después y siguió recibiendo pagos reales, así que esa fila
+  // antigua queda superada. Se excluye del cálculo (no es un pago real) y se sustituye.
+  const ajustesPrevios = pagos.filter((p) => p.banco === BANCO_AJUSTE);
+  const pagosContables = pagos.filter((p) => !p.devuelto && p.banco !== BANCO_AJUSTE);
 
   let saldo = Number(origen.saldoInicial);
   if (origen.monedaSaldoInicial !== moneda && saldo !== 0) {
@@ -70,7 +71,23 @@ async function calcular() {
     excedenteEnMonedaDestino = round2(monedaDestino === "EUR" ? cruce.excedente / tasa : cruce.excedente * tasa);
   }
 
-  return { origen, destino, moneda, objetivo, pagoCruce, excedente: cruce.excedente, monedaDestino, excedenteEnMonedaDestino };
+  return {
+    origen,
+    destino,
+    moneda,
+    objetivo,
+    pagoCruce,
+    excedente: cruce.excedente,
+    monedaDestino,
+    excedenteEnMonedaDestino,
+    ajustesPrevios: ajustesPrevios.map((a) => ({
+      id: a.id,
+      fecha: a.fecha.toISOString().slice(0, 10),
+      importeEur: a.importeEur ? Number(a.importeEur) : null,
+      importeUsd: a.importeUsd ? Number(a.importeUsd) : null,
+      idOrigen: a.idOrigen,
+    })),
+  };
 }
 
 export async function GET(req: NextRequest) {
@@ -84,6 +101,7 @@ export async function GET(req: NextRequest) {
       modo: "SOLO CALCULO, no se ha escrito nada",
       origen: r.origen.nombre,
       destino: r.destino.nombre,
+      ajustesPreviosQueSeSustituiran: r.ajustesPrevios,
       totalFacturaOrigen: Number(r.origen.totalFactura),
       monedaOrigen: r.moneda,
       pagoQueCruza: {
@@ -125,6 +143,10 @@ export async function POST(req: NextRequest) {
       });
       if (cerrado.count === 0) throw new Error("Otro proceso lo cerró a la vez; no se ha tocado nada.");
 
+      if (r.ajustesPrevios.length > 0) {
+        await tx.pago.deleteMany({ where: { id: { in: r.ajustesPrevios.map((a) => a.id) } } });
+      }
+
       await tx.pago.create({
         data: {
           contenedorId: r.origen.id,
@@ -156,7 +178,7 @@ export async function POST(req: NextRequest) {
       accion: "cierre_automatico",
       entidad: "Contenedor",
       entidadId: r.origen.id,
-      detalle: `Corrección manual: "${r.origen.nombre}" alcanzó su total y se completó; el excedente de ${r.excedente} ${r.moneda} se sumó al saldo inicial de "${r.destino.nombre}" (quedó en ${nuevoSaldoDestino} ${r.monedaDestino}).`,
+      detalle: `Corrección manual: "${r.origen.nombre}" se reabrió tras su cierre del 6/10 y acumuló más pagos; se sustituyó la fila de Ajuste antigua (${r.ajustesPrevios.length}) y se completó de nuevo. El excedente de ${r.excedente} ${r.moneda} se sumó al saldo inicial de "${r.destino.nombre}" (quedó en ${nuevoSaldoDestino} ${r.monedaDestino}).`,
     });
 
     return NextResponse.json({

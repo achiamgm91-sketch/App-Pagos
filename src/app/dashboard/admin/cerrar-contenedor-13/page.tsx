@@ -6,6 +6,7 @@ import Link from "next/link";
 type Calculo = {
   origen: string;
   destino: string;
+  ajustesPreviosQueSeSustituiran: { id: string; fecha: string; importeEur: number | null; importeUsd: number | null; idOrigen: string }[];
   totalFacturaOrigen: number;
   monedaOrigen: string;
   pagoQueCruza: { persona: string; fecha: string; importeEur: number | null; importeUsd: number | null; banco: string };
@@ -96,6 +97,17 @@ export default function CerrarContenedor13Page() {
             <div>
               <b>{calculo.origen}</b> → <b>{calculo.destino}</b>
             </div>
+            {calculo.ajustesPreviosQueSeSustituiran.length > 0 && (
+              <div className="bg-[#FFF8E6] border border-[#F0D98C] rounded-lg p-2.5">
+                Se va a sustituir {calculo.ajustesPreviosQueSeSustituiran.length} fila(s) de Ajuste antigua(s)
+                (del cierre del 6/10):{" "}
+                {calculo.ajustesPreviosQueSeSustituiran.map((a) => (
+                  <div key={a.id} className="font-mono text-[11px]">
+                    {a.fecha} · {a.importeEur} € / {a.importeUsd} $
+                  </div>
+                ))}
+              </div>
+            )}
             <div>Total factura origen: {calculo.totalFacturaOrigen} {calculo.monedaOrigen}</div>
             <div className="border-t border-line pt-2 mt-2">
               Pago que cruza: <b>{calculo.pagoQueCruza.persona}</b> ({calculo.pagoQueCruza.fecha},{" "}
