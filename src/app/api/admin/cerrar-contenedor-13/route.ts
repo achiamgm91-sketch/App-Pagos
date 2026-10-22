@@ -61,6 +61,11 @@ async function calcular() {
   if (!cruce) throw new Error("No se encontró un pago que cruce el total; revisar a mano.");
 
   const pagoCruce = pagosContables[cruce.indice];
+  // Todo lo que venga después del pago que cruza, en el mismo orden de banco, llegó
+  // cuando el Contenedor 13 ya debería haber estado cerrado: es dinero real que
+  // pertenece al contenedor siguiente, no solo el sobrante del pago que cruza.
+  const pagosAReasignar = pagosContables.slice(cruce.indice + 1);
+  const sumaAReasignar = round2(pagosAReasignar.reduce((s, p) => s + (importeDe(p) ?? 0), 0));
 
   const monedaDestino = destino.monedaSaldoInicial === "EUR" ? "EUR" : "USD";
   let excedenteEnMonedaDestino = cruce.excedente;
@@ -71,6 +76,9 @@ async function calcular() {
     excedenteEnMonedaDestino = round2(monedaDestino === "EUR" ? cruce.excedente / tasa : cruce.excedente * tasa);
   }
 
+  const sumaAReasignarUsd = round2(pagosAReasignar.reduce((s, p) => s + (p.importeUsd ? Number(p.importeUsd) : 0), 0));
+  const sumaAReasignarEur = round2(pagosAReasignar.reduce((s, p) => s + (p.importeEur ? Number(p.importeEur) : 0), 0));
+
   return {
     origen,
     destino,
@@ -80,6 +88,10 @@ async function calcular() {
     excedente: cruce.excedente,
     monedaDestino,
     excedenteEnMonedaDestino,
+    pagosAReasignar,
+    numPagosAReasignar: pagosAReasignar.length,
+    sumaAReasignarUsd,
+    sumaAReasignarEur,
     ajustesPrevios: ajustesPrevios.map((a) => ({
       id: a.id,
       fecha: a.fecha.toISOString().slice(0, 10),
@@ -117,6 +129,20 @@ export async function GET(req: NextRequest) {
       excedenteEnMonedaDestino: r.excedenteEnMonedaDestino,
       saldoInicialActualDestino: Number(r.destino.saldoInicial),
       saldoInicialNuevoDestino: round2(Number(r.destino.saldoInicial) + r.excedenteEnMonedaDestino),
+      pagosQueSeReasignaran: {
+        cuantos: r.numPagosAReasignar,
+        sumaUsd: r.sumaAReasignarUsd,
+        sumaEur: r.sumaAReasignarEur,
+        primerPago: r.pagosAReasignar[0]
+          ? { persona: r.pagosAReasignar[0].persona, fecha: r.pagosAReasignar[0].fecha.toISOString().slice(0, 10) }
+          : null,
+        ultimoPago: r.pagosAReasignar[r.pagosAReasignar.length - 1]
+          ? {
+              persona: r.pagosAReasignar[r.pagosAReasignar.length - 1].persona,
+              fecha: r.pagosAReasignar[r.pagosAReasignar.length - 1].fecha.toISOString().slice(0, 10),
+            }
+          : null,
+      },
     });
   } catch (e: any) {
     return NextResponse.json({ error: e.message }, { status: 400 });
@@ -170,6 +196,13 @@ export async function POST(req: NextRequest) {
         data: { saldoInicial: nuevoSaldoDestino, actualizadoPorId: usuarioId },
       });
 
+      if (r.pagosAReasignar.length > 0) {
+        await tx.pago.updateMany({
+          where: { id: { in: r.pagosAReasignar.map((p) => p.id) } },
+          data: { contenedorId: r.destino.id, actualizadoPorId: usuarioId },
+        });
+      }
+
       return destinoActualizado;
     });
 
@@ -178,7 +211,7 @@ export async function POST(req: NextRequest) {
       accion: "cierre_automatico",
       entidad: "Contenedor",
       entidadId: r.origen.id,
-      detalle: `Corrección manual: "${r.origen.nombre}" se reabrió tras su cierre del 6/10 y acumuló más pagos; se sustituyó la fila de Ajuste antigua (${r.ajustesPrevios.length}) y se completó de nuevo. El excedente de ${r.excedente} ${r.moneda} se sumó al saldo inicial de "${r.destino.nombre}" (quedó en ${nuevoSaldoDestino} ${r.monedaDestino}).`,
+      detalle: `Corrección manual: "${r.origen.nombre}" se reabrió tras su cierre del 6/10 y acumuló más pagos; se sustituyó la fila de Ajuste antigua (${r.ajustesPrevios.length}) y se completó de nuevo. El excedente de ${r.excedente} ${r.moneda} se sumó al saldo inicial de "${r.destino.nombre}" (quedó en ${nuevoSaldoDestino} ${r.monedaDestino}), y se reasignaron ${r.numPagosAReasignar} pago(s) posteriores (${r.sumaAReasignarUsd} USD / ${r.sumaAReasignarEur} EUR) de "${r.origen.nombre}" a "${r.destino.nombre}".`,
     });
 
     return NextResponse.json({
@@ -188,6 +221,9 @@ export async function POST(req: NextRequest) {
       excedenteMovido: r.excedente,
       moneda: r.moneda,
       nuevoSaldoInicialDestino: nuevoSaldoDestino,
+      pagosReasignados: r.numPagosAReasignar,
+      sumaReasignadaUsd: r.sumaAReasignarUsd,
+      sumaReasignadaEur: r.sumaAReasignarEur,
     });
   } catch (e: any) {
     return NextResponse.json({ error: e.message }, { status: 400 });

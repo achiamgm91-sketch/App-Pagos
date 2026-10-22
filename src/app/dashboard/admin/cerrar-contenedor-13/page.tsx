@@ -15,6 +15,13 @@ type Calculo = {
   excedenteEnMonedaDestino: number;
   saldoInicialActualDestino: number;
   saldoInicialNuevoDestino: number;
+  pagosQueSeReasignaran: {
+    cuantos: number;
+    sumaUsd: number;
+    sumaEur: number;
+    primerPago: { persona: string; fecha: string } | null;
+    ultimoPago: { persona: string; fecha: string } | null;
+  };
 };
 
 type Resultado = {
@@ -24,6 +31,9 @@ type Resultado = {
   excedenteMovido: number;
   moneda: string;
   nuevoSaldoInicialDestino: number;
+  pagosReasignados: number;
+  sumaReasignadaUsd: number;
+  sumaReasignadaEur: number;
 };
 
 export default function CerrarContenedor13Page() {
@@ -122,6 +132,17 @@ export default function CerrarContenedor13Page() {
               Saldo inicial de {calculo.destino}: {calculo.saldoInicialActualDestino} {calculo.monedaDestino} →{" "}
               <b>{calculo.saldoInicialNuevoDestino} {calculo.monedaDestino}</b>
             </div>
+            <div className="border-t border-line pt-2 mt-2 bg-[#EFF3FF] -mx-4 px-4 py-2 border-[#CDD9F7]">
+              Además, se van a <b>reasignar {calculo.pagosQueSeReasignaran.cuantos} pagos</b> de{" "}
+              {calculo.origen} a {calculo.destino} (llegaron después del pago que cruza): suman{" "}
+              <b>{calculo.pagosQueSeReasignaran.sumaEur} € / {calculo.pagosQueSeReasignaran.sumaUsd} $</b>.
+              {calculo.pagosQueSeReasignaran.primerPago && calculo.pagosQueSeReasignaran.ultimoPago && (
+                <div className="font-mono text-[11px] mt-1">
+                  Del {calculo.pagosQueSeReasignaran.primerPago.fecha} ({calculo.pagosQueSeReasignaran.primerPago.persona})
+                  {" "}al {calculo.pagosQueSeReasignaran.ultimoPago.fecha} ({calculo.pagosQueSeReasignaran.ultimoPago.persona})
+                </div>
+              )}
+            </div>
 
             <button
               onClick={confirmar}
@@ -136,8 +157,10 @@ export default function CerrarContenedor13Page() {
         {resultado && (
           <div className="bg-teal-bg border border-[#CDE9DF] rounded-xl p-4 text-[13.5px] text-[#0F5D45]">
             Hecho. <b>{resultado.origenCompletado}</b> completado. {resultado.excedenteMovido} {resultado.moneda}{" "}
-            movidos a <b>{resultado.destino}</b>, que ahora tiene{" "}
-            <b>{resultado.nuevoSaldoInicialDestino} {resultado.moneda}</b> de saldo inicial.
+            sumados al saldo inicial de <b>{resultado.destino}</b> (ahora{" "}
+            <b>{resultado.nuevoSaldoInicialDestino} {resultado.moneda}</b>), y{" "}
+            <b>{resultado.pagosReasignados} pagos</b> ({resultado.sumaReasignadaEur} € /{" "}
+            {resultado.sumaReasignadaUsd} $) reasignados a {resultado.destino}.
           </div>
         )}
       </main>
