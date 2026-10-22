@@ -17,11 +17,12 @@ const AVATAR_COLOR: Record<string, string> = {
   Adrián: "bg-[#B0662A]",
 };
 
-function formatEnMoneda(valorUsd: number, moneda: string, tasaUsdPorEur: number | null) {
-  if (moneda === "EUR" && tasaUsdPorEur) {
-    return formatEur(valorUsd / tasaUsdPorEur);
-  }
-  return formatUsd(valorUsd);
+// Formatea un valor que YA está en la moneda del contenedor (totalFactura, saldoInicial
+// convertido, recibido convertido, falta, excedente) — no hace falta convertir nada aquí,
+// solo elegir el símbolo. La conversión real se hace antes, al sumar los pagos y el saldo
+// inicial en la moneda del total de factura (ver importeEnMonedaContenedor más abajo).
+function formatEnMoneda(valor: number, moneda: string) {
+  return moneda === "EUR" ? formatEur(valor) : formatUsd(valor);
 }
 
 export default async function DashboardPage({
@@ -74,13 +75,25 @@ export default async function DashboardPage({
     );
   }
 
-  const saldoInicial = Number(contenedor.saldoInicial);
   const totalFactura = Number(contenedor.totalFactura);
   const monedaTotalFactura = contenedor.monedaTotalFactura;
 
-  const pagosDelContenedor = contenedor.pagos.filter((p) => p.importeUsd !== null && !p.devuelto);
-  const pagosSinConversion = contenedor.pagos.filter((p) => p.importeUsd === null);
-  const sumaPagos = round2(pagosDelContenedor.reduce((sum, p) => sum + Number(p.importeUsd), 0));
+  // El saldo inicial y los pagos pueden estar guardados en EUR o en USD; para comparar
+  // contra el total de factura hace falta que los tres estén en la MISMA moneda (la del
+  // total), igual que ya hace el cierre automático (ver cierreAutomatico.ts).
+  let saldoInicial = Number(contenedor.saldoInicial);
+  if (contenedor.monedaSaldoInicial !== monedaTotalFactura && saldoInicial !== 0 && ultimaTasa) {
+    saldoInicial = monedaTotalFactura === "EUR" ? saldoInicial / ultimaTasa : saldoInicial * ultimaTasa;
+  }
+
+  const importeEnMonedaContenedor = (p: { importeEur: unknown; importeUsd: unknown }) => {
+    const v = monedaTotalFactura === "EUR" ? p.importeEur : p.importeUsd;
+    return v === null || v === undefined ? null : Number(v);
+  };
+
+  const pagosDelContenedor = contenedor.pagos.filter((p) => importeEnMonedaContenedor(p) !== null && !p.devuelto);
+  const pagosSinConversion = contenedor.pagos.filter((p) => importeEnMonedaContenedor(p) === null);
+  const sumaPagos = round2(pagosDelContenedor.reduce((sum, p) => sum + (importeEnMonedaContenedor(p) ?? 0), 0));
   const recibido = sumaPagos; // solo la suma de pagos, sin el saldo inicial
   const totalConSaldoInicial = round2(saldoInicial + recibido);
   const falta = round2(Math.max(totalFactura - saldoInicial - recibido, 0));
@@ -92,12 +105,12 @@ export default async function DashboardPage({
   const objetivoPorCobrador = cobradores.length > 0 ? round2(totalFactura / cobradores.length) : 0;
   const desglose = cobradores.map((c) => {
     const pagosDeCobrador = pagosDelContenedor.filter((p) => p.cobradorId === c.id);
-    const total = round2(pagosDeCobrador.reduce((sum, p) => sum + Number(p.importeUsd), 0));
+    const total = round2(pagosDeCobrador.reduce((sum, p) => sum + (importeEnMonedaContenedor(p) ?? 0), 0));
     return { cobrador: c, total, count: pagosDeCobrador.length };
   });
 
   const pagosSinAsignarDelContenedor = pagosDelContenedor.filter((p) => !p.cobradorId && p.banco !== "Ajuste");
-  const totalSinAsignar = round2(pagosSinAsignarDelContenedor.reduce((sum, p) => sum + Number(p.importeUsd), 0));
+  const totalSinAsignar = round2(pagosSinAsignarDelContenedor.reduce((sum, p) => sum + (importeEnMonedaContenedor(p) ?? 0), 0));
 
   return (
     <div className="min-h-screen pb-20 md:pb-0 md:grid md:grid-cols-[240px_1fr]">
@@ -261,7 +274,7 @@ export default async function DashboardPage({
                 {excedente > 0 ? "EXCEDENTE" : "FALTA POR COBRAR"}
               </div>
               <div className="font-mono text-[26px] font-semibold">
-                {formatEnMoneda(excedente > 0 ? excedente : falta, monedaTotalFactura, ultimaTasa)}
+                {formatEnMoneda(excedente > 0 ? excedente : falta, monedaTotalFactura)}
               </div>
               {excedente === 0 && (
                 <div className="font-mono text-[10px] text-steel-light mt-1 opacity-80">
@@ -272,7 +285,7 @@ export default async function DashboardPage({
             <div className="text-right font-mono text-[13px] text-steel-light">
               RECIBIDO
               <div className="text-base text-white">
-                {formatEnMoneda(recibido, monedaTotalFactura, ultimaTasa)}
+                {formatEnMoneda(recibido, monedaTotalFactura)}
               </div>
             </div>
           </div>
@@ -284,9 +297,9 @@ export default async function DashboardPage({
           </div>
           <div className="flex justify-between mt-2 text-[11.5px] text-steel-light font-mono">
             <span>
-              {pct}% cobrado · saldo inicial {formatEnMoneda(saldoInicial, monedaTotalFactura, ultimaTasa)}
+              {pct}% cobrado · saldo inicial {formatEnMoneda(saldoInicial, monedaTotalFactura)}
             </span>
-            <span>Total factura: {formatEnMoneda(totalFactura, monedaTotalFactura, ultimaTasa)}</span>
+            <span>Total factura: {formatEnMoneda(totalFactura, monedaTotalFactura)}</span>
           </div>
         </div>
 
@@ -301,13 +314,13 @@ export default async function DashboardPage({
           <div className="bg-teal-bg border border-[#CDE9DF] rounded-xl p-4 mb-4">
             <div className={`text-[13px] text-[#0F5D45] ${contenedor.estado === "ACTIVO" ? "mb-3" : ""}`}>
               Este contenedor tenía un saldo inicial de{" "}
-              <b className="font-mono">{formatEnMoneda(saldoInicial, monedaTotalFactura, ultimaTasa)}</b>, y se
+              <b className="font-mono">{formatEnMoneda(saldoInicial, monedaTotalFactura)}</b>, y se
               le han asociado <b className="font-mono">{pagosDelContenedor.length}</b> pago(s) por un importe
-              total de <b className="font-mono">{formatEnMoneda(recibido, monedaTotalFactura, ultimaTasa)}</b>.
+              total de <b className="font-mono">{formatEnMoneda(recibido, monedaTotalFactura)}</b>.
               Por lo tanto alcanza el total de factura (
-              <b className="font-mono">{formatEnMoneda(totalFactura, monedaTotalFactura, ultimaTasa)}</b>) y
+              <b className="font-mono">{formatEnMoneda(totalFactura, monedaTotalFactura)}</b>) y
               queda un excedente de{" "}
-              <b className="font-mono">{formatEnMoneda(excedente, monedaTotalFactura, ultimaTasa)}</b> que
+              <b className="font-mono">{formatEnMoneda(excedente, monedaTotalFactura)}</b> que
               puedes mover al siguiente contenedor cuando lo des de alta.
               {contenedor.estado === "ACTIVO" && " Marca este como completado."}
             </div>
@@ -367,7 +380,7 @@ export default async function DashboardPage({
               {pendientes.length > 0 ? `${pendientes.length} pago(s) sin asignar` : "todos los pagos asignados"}
             </div>
           </div>
-          <div className="font-mono font-bold text-base">{formatUsd(recibido)}</div>
+          <div className="font-mono font-bold text-base">{formatEnMoneda(recibido, monedaTotalFactura)}</div>
         </div>
         {desglose.map(({ cobrador, total, count }) => (
           <Link
@@ -387,8 +400,8 @@ export default async function DashboardPage({
               <div className="font-mono text-[11.5px] text-steel mt-0.5">{count} pagos asignados</div>
             </div>
             <div className="text-right">
-              <div className="font-mono font-bold text-base">{formatUsd(total)}</div>
-              <div className="font-mono text-[11px] text-steel mt-0.5">objetivo {formatUsd(objetivoPorCobrador)}</div>
+              <div className="font-mono font-bold text-base">{formatEnMoneda(total, monedaTotalFactura)}</div>
+              <div className="font-mono text-[11px] text-steel mt-0.5">objetivo {formatEnMoneda(objetivoPorCobrador, monedaTotalFactura)}</div>
             </div>
           </Link>
         ))}
@@ -404,7 +417,7 @@ export default async function DashboardPage({
               </div>
             </div>
             <div className="text-right">
-              <div className="font-mono font-bold text-base">{formatUsd(totalSinAsignar)}</div>
+              <div className="font-mono font-bold text-base">{formatEnMoneda(totalSinAsignar, monedaTotalFactura)}</div>
             </div>
           </div>
         )}
