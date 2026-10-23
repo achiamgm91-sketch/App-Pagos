@@ -4,6 +4,7 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { registrarActividad } from "@/lib/actividad";
 import { tienePermiso } from "@/lib/permisos";
+import { round2 } from "@/lib/format";
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -36,8 +37,31 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     data.persona = String(body.persona).trim();
   }
 
-  if (body.importeEur !== undefined) data.importeEur = body.importeEur;
-  if (body.importeUsd !== undefined) data.importeUsd = body.importeUsd;
+  // El formulario solo manda el importe en la moneda original del pago (la que se
+  // edita en pantalla); el campo convertido hay que recalcularlo aquí mismo con la
+  // tasa guardada del pago, o se queda desactualizado hasta el siguiente cron de
+  // tasas (y mientras tanto los totales del contenedor usarían el valor viejo).
+  if (body.importeEur !== undefined || body.importeUsd !== undefined) {
+    const pagoActual = await prisma.pago.findUnique({
+      where: { id },
+      select: { monedaOriginal: true, tasaCambio: true },
+    });
+    if (!pagoActual) {
+      return NextResponse.json({ error: "Pago no encontrado" }, { status: 404 });
+    }
+    const tasa = pagoActual.tasaCambio !== null ? Number(pagoActual.tasaCambio) : null;
+
+    if (body.importeEur !== undefined) data.importeEur = body.importeEur;
+    if (body.importeUsd !== undefined) data.importeUsd = body.importeUsd;
+
+    if (tasa) {
+      if (pagoActual.monedaOriginal === "USD" && body.importeUsd !== undefined && body.importeEur === undefined) {
+        data.importeEur = round2(Number(body.importeUsd) / tasa);
+      } else if (pagoActual.monedaOriginal === "EUR" && body.importeEur !== undefined && body.importeUsd === undefined) {
+        data.importeUsd = round2(Number(body.importeEur) * tasa);
+      }
+    }
+  }
   if (body.banco !== undefined) data.banco = body.banco;
 
   const pago = await prisma.pago.update({
