@@ -107,13 +107,20 @@ export async function reasignarPagosPorCorte() {
  * factura), lo completa y abre el siguiente. El pago que cruza el total se queda
  * entero en el contenedor que se cierra, con una fila en negativo justo debajo por
  * lo que sobra, y ese sobrante es el saldo inicial del contenedor nuevo.
+ *
+ * Sin contenedorId mira "el" contenedor ACTIVO (uso normal, tras cada importación).
+ * Con contenedorId, actúa sobre ese contenedor concreto aunque no sea el que
+ * encontraría por estado — lo usa el botón "Completar" para comprobar primero si de
+ * verdad hay excedente que repartir antes de limitarse a cambiar la etiqueta a mano.
  */
-export async function cerrarContenedorSiCompleto(): Promise<ResultadoCierre | null> {
-  const activo = await prisma.contenedor.findFirst({
-    where: { estado: "ACTIVO" },
-    orderBy: [{ fechaInicio: "desc" }, { creadoEn: "desc" }],
-  });
-  if (!activo) return null;
+export async function cerrarContenedorSiCompleto(contenedorId?: string): Promise<ResultadoCierre | null> {
+  const activo = contenedorId
+    ? await prisma.contenedor.findUnique({ where: { id: contenedorId } })
+    : await prisma.contenedor.findFirst({
+        where: { estado: "ACTIVO" },
+        orderBy: [{ fechaInicio: "desc" }, { creadoEn: "desc" }],
+      });
+  if (!activo || activo.estado !== "ACTIVO") return null;
 
   const total = Number(activo.totalFactura);
   if (total <= 0) return null;

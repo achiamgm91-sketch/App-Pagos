@@ -320,9 +320,9 @@ export default async function DashboardPage({
               Por lo tanto alcanza el total de factura (
               <b className="font-mono">{formatEnMoneda(totalFactura, monedaTotalFactura)}</b>) y
               queda un excedente de{" "}
-              <b className="font-mono">{formatEnMoneda(excedente, monedaTotalFactura)}</b> que
-              puedes mover al siguiente contenedor cuando lo des de alta.
-              {contenedor.estado === "ACTIVO" && " Marca este como completado."}
+              <b className="font-mono">{formatEnMoneda(excedente, monedaTotalFactura)}</b>.
+              {contenedor.estado === "ACTIVO" &&
+                " Al completarlo se abrirá el siguiente contenedor solo, con ese excedente como su saldo inicial."}
             </div>
             {contenedor.estado === "ACTIVO" && <CompletarContenedor contenedorId={contenedor.id} />}
           </div>
