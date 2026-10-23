@@ -61,6 +61,7 @@ export default async function MisPagosPage() {
       banco: p.banco,
       contenedorId: p.contenedorId ?? "sin-contenedor",
       contenedorNombre: p.contenedor?.nombre ?? "Sin contenedor",
+      contenedorMoneda: p.contenedor?.monedaTotalFactura ?? "USD",
       cobradorNombre: p.cobrador?.nombre ?? null,
       etiquetaAsignacion,
       importeUsd: p.importeUsd !== null ? Number(p.importeUsd) : null,

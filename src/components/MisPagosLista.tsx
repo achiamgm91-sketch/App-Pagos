@@ -12,6 +12,7 @@ type Pago = {
   banco: string;
   contenedorId: string;
   contenedorNombre: string;
+  contenedorMoneda: string;
   cobradorNombre: string | null;
   etiquetaAsignacion: string | null;
   importeUsd: number | null;
@@ -63,12 +64,17 @@ export default function MisPagosLista({ pagos }: { pagos: Pago[] }) {
   }, [busqueda, fechaFiltro, montoFiltro, monedaFiltro, pagos]);
 
   const grupos = useMemo(() => {
-    const map = new Map<string, { nombre: string; pagos: Pago[]; total: number }>();
+    const map = new Map<string, { nombre: string; moneda: string; pagos: Pago[]; total: number }>();
     for (const p of filtrados) {
-      if (!map.has(p.contenedorId)) map.set(p.contenedorId, { nombre: p.contenedorNombre, pagos: [], total: 0 });
+      if (!map.has(p.contenedorId)) {
+        map.set(p.contenedorId, { nombre: p.contenedorNombre, moneda: p.contenedorMoneda, pagos: [], total: 0 });
+      }
       const g = map.get(p.contenedorId)!;
       g.pagos.push(p);
-      if (p.importeUsd !== null) g.total = round2(g.total + p.importeUsd);
+      // El total del grupo se suma en la moneda del contenedor (no siempre USD), igual
+      // que el resto de la app, para que el símbolo que se muestra sea el correcto.
+      const valor = g.moneda === "EUR" ? p.importeEur : p.importeUsd;
+      if (valor !== null) g.total = round2(g.total + valor);
     }
     return Array.from(map.values());
   }, [filtrados]);
@@ -140,7 +146,9 @@ export default function MisPagosLista({ pagos }: { pagos: Pago[] }) {
               </div>
               <div className="text-right">
                 <div className="font-mono text-[10.5px] text-steel uppercase">Total cobrado</div>
-                <div className="font-mono font-bold text-[15px]">{formatUsd(g.total)}</div>
+                <div className="font-mono font-bold text-[15px]">
+                  {g.moneda === "EUR" ? formatEur(g.total) : formatUsd(g.total)}
+                </div>
               </div>
             </div>
 
