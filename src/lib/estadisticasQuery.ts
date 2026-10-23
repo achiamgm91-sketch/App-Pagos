@@ -36,14 +36,23 @@ export async function obtenerDuracionesContenedores() {
     orderBy: { fechaInicio: "asc" },
   });
 
+  const ultimoTipoCambio = await prisma.tipoCambioDia.findFirst({ orderBy: { fecha: "desc" } });
+  const ultimaTasa = ultimoTipoCambio ? Number(ultimoTipoCambio.usdPorEur) : null;
+
   return contenedores.map((c) => {
     const totalFactura = Number(c.totalFactura);
-    let acumulado = Number(c.saldoInicial);
-    let fechaCompletado: string | null = null;
+    const moneda = c.monedaTotalFactura;
 
+    let acumulado = Number(c.saldoInicial);
+    if (c.monedaSaldoInicial !== moneda && acumulado !== 0 && ultimaTasa) {
+      acumulado = moneda === "EUR" ? acumulado / ultimaTasa : acumulado * ultimaTasa;
+    }
+
+    let fechaCompletado: string | null = null;
     for (const p of c.pagos) {
-      if (p.importeUsd === null) continue;
-      acumulado += Number(p.importeUsd);
+      const v = moneda === "EUR" ? p.importeEur : p.importeUsd;
+      if (v === null) continue;
+      acumulado += Number(v);
       if (fechaCompletado === null && acumulado >= totalFactura) {
         fechaCompletado = p.fecha.toISOString().slice(0, 10);
       }

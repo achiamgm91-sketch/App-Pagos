@@ -26,13 +26,27 @@ export async function GET(req: NextRequest) {
     orderBy: { creadoEn: "desc" },
   });
 
+  const ultimoTipoCambio = await prisma.tipoCambioDia.findFirst({ orderBy: { fecha: "desc" } });
+  const ultimaTasa = ultimoTipoCambio ? Number(ultimoTipoCambio.usdPorEur) : null;
+
   const resultado = contenedores.map((c) => {
-    const saldoInicial = Number(c.saldoInicial);
+    // recibidoUsd y porcentajePagado son siempre en USD de verdad (lo consume almacen-app):
+    // el saldo inicial puede venir en EUR y hay que convertirlo antes de sumarlo a los
+    // pagos (que ya traen su propio importeUsd calculado), y el total de factura también
+    // hay que pasarlo a USD si está en EUR antes de comparar, para no mezclar monedas.
+    let saldoInicialUsd = Number(c.saldoInicial);
+    if (c.monedaSaldoInicial === "EUR" && saldoInicialUsd !== 0 && ultimaTasa) {
+      saldoInicialUsd = saldoInicialUsd * ultimaTasa;
+    }
     const totalFactura = Number(c.totalFactura);
+    let totalFacturaUsd = totalFactura;
+    if (c.monedaTotalFactura === "EUR" && ultimaTasa) {
+      totalFacturaUsd = totalFactura * ultimaTasa;
+    }
     const recibidoUsd = round2(
-      saldoInicial + c.pagos.filter((p) => !p.devuelto).reduce((sum, p) => sum + (p.importeUsd !== null ? Number(p.importeUsd) : 0), 0)
+      saldoInicialUsd + c.pagos.filter((p) => !p.devuelto).reduce((sum, p) => sum + (p.importeUsd !== null ? Number(p.importeUsd) : 0), 0)
     );
-    const porcentajePagado = totalFactura > 0 ? Math.min(Math.round((recibidoUsd / totalFactura) * 100), 100) : 0;
+    const porcentajePagado = totalFacturaUsd > 0 ? Math.min(Math.round((recibidoUsd / totalFacturaUsd) * 100), 100) : 0;
 
     return {
       nombre: c.nombre,

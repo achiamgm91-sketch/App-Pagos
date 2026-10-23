@@ -39,11 +39,28 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     return NextResponse.json({ error: "Contenedor no encontrado" }, { status: 404 });
   }
 
-  const saldoInicial = Number(contenedor.saldoInicial);
   const totalFactura = Number(contenedor.totalFactura);
-  const pagosConImporte = contenedor.pagos.filter((p) => p.importeUsd !== null && !p.devuelto);
+  const monedaTotalFactura = contenedor.monedaTotalFactura;
+
+  // El saldo inicial y los pagos pueden estar en EUR o en USD; hay que sumarlos en la
+  // misma moneda que el total de factura, igual que en el cierre automático y en el
+  // Inicio (ver cierreAutomatico.ts y dashboard/page.tsx — ahí estaba el mismo fallo).
+  const ultimoTipoCambio = await prisma.tipoCambioDia.findFirst({ orderBy: { fecha: "desc" } });
+  const ultimaTasa = ultimoTipoCambio ? Number(ultimoTipoCambio.usdPorEur) : null;
+
+  let saldoInicial = Number(contenedor.saldoInicial);
+  if (contenedor.monedaSaldoInicial !== monedaTotalFactura && saldoInicial !== 0 && ultimaTasa) {
+    saldoInicial = monedaTotalFactura === "EUR" ? saldoInicial / ultimaTasa : saldoInicial * ultimaTasa;
+  }
+
+  const importeEnMonedaContenedor = (p: { importeEur: unknown; importeUsd: unknown }) => {
+    const v = monedaTotalFactura === "EUR" ? p.importeEur : p.importeUsd;
+    return v === null || v === undefined ? null : Number(v);
+  };
+
+  const pagosConImporte = contenedor.pagos.filter((p) => importeEnMonedaContenedor(p) !== null && !p.devuelto);
   const recibido = round2(
-    saldoInicial + pagosConImporte.reduce((sum, p) => sum + Number(p.importeUsd), 0)
+    saldoInicial + pagosConImporte.reduce((sum, p) => sum + (importeEnMonedaContenedor(p) ?? 0), 0)
   );
   const falta = round2(Math.max(totalFactura - recibido, 0));
 
@@ -52,10 +69,10 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     ["Código", contenedor.codigo ?? "sin código"],
     ["Estado", contenedor.estado],
     ["Fecha de inicio", contenedor.fechaInicio.toLocaleDateString("es-ES")],
-    ["Saldo inicial", saldoInicial, contenedor.monedaSaldoInicial],
-    ["Total factura", totalFactura, contenedor.monedaTotalFactura],
-    ["Recibido (USD)", recibido],
-    ["Falta por cobrar (USD)", falta],
+    ["Saldo inicial", saldoInicial, monedaTotalFactura],
+    ["Total factura", totalFactura, monedaTotalFactura],
+    [`Recibido (${monedaTotalFactura})`, recibido],
+    [`Falta por cobrar (${monedaTotalFactura})`, falta],
     ["Número de pagos", contenedor.pagos.length],
     ["Exportado el", new Date().toLocaleString("es-ES")],
   ];
@@ -113,12 +130,18 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     ];
   });
 
-  const wsPagos = XLSX.utils.aoa_to_sheet([
-    cabecera,
-    ...filas,
-    ["", "", "", "SALDO INICIAL (no es un pago de cliente)", "", "", "", saldoInicial, "", "", "", "", "", "", "", "", "", "", ""],
-    ["", "", "", "TOTAL RECIBIDO (sin devoluciones)", "", "", "", recibido, "", "", "", "", "", "", "", "", "", "", ""],
-  ]);
+  // Las dos filas de totales van en la columna "Importe EUR" o "Importe USD" según la
+  // moneda del total de factura (saldoInicial y recibido ya están convertidos a esa moneda).
+  const filaSaldoInicial =
+    monedaTotalFactura === "EUR"
+      ? ["", "", "", "SALDO INICIAL (no es un pago de cliente)", "", "", saldoInicial, "", "", "", "", "", "", "", "", "", "", "", ""]
+      : ["", "", "", "SALDO INICIAL (no es un pago de cliente)", "", "", "", saldoInicial, "", "", "", "", "", "", "", "", "", "", ""];
+  const filaRecibido =
+    monedaTotalFactura === "EUR"
+      ? ["", "", "", "TOTAL RECIBIDO (sin devoluciones)", "", "", recibido, "", "", "", "", "", "", "", "", "", "", "", ""]
+      : ["", "", "", "TOTAL RECIBIDO (sin devoluciones)", "", "", "", recibido, "", "", "", "", "", "", "", "", "", "", ""];
+
+  const wsPagos = XLSX.utils.aoa_to_sheet([cabecera, ...filas, filaSaldoInicial, filaRecibido]);
   wsPagos["!cols"] = [
     { wch: 26 }, { wch: 22 }, { wch: 11 }, { wch: 28 }, { wch: 10 }, { wch: 18 },
     { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 14 }, { wch: 14 }, { wch: 24 },

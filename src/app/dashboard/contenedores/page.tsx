@@ -4,7 +4,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { tienePermiso } from "@/lib/permisos";
 import EliminarContenedor from "@/components/EliminarContenedor";
-import { round2, formatUsd } from "@/lib/format";
+import { round2, formatUsd, formatEur } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
@@ -33,6 +33,9 @@ export default async function ContenedoresPage() {
     orderBy: { creadoEn: "desc" },
   });
 
+  const ultimoTipoCambio = await prisma.tipoCambioDia.findFirst({ orderBy: { fecha: "desc" } });
+  const ultimaTasa = ultimoTipoCambio ? Number(ultimoTipoCambio.usdPorEur) : null;
+
   return (
     <div className="min-h-screen">
       <div className="bg-navy-950 text-white px-4.5 py-4 flex items-center justify-between sticky top-0 z-20">
@@ -60,11 +63,22 @@ export default async function ContenedoresPage() {
         </div>
 
         {contenedores.map((c) => {
-          const saldoInicial = Number(c.saldoInicial);
           const totalFactura = Number(c.totalFactura);
+          const moneda = c.monedaTotalFactura;
+          const formatear = moneda === "EUR" ? formatEur : formatUsd;
+
+          let saldoInicial = Number(c.saldoInicial);
+          if (c.monedaSaldoInicial !== moneda && saldoInicial !== 0 && ultimaTasa) {
+            saldoInicial = moneda === "EUR" ? saldoInicial / ultimaTasa : saldoInicial * ultimaTasa;
+          }
           const recibido = round2(
             saldoInicial +
-              c.pagos.filter((p) => !p.devuelto).reduce((sum, p) => sum + (p.importeUsd !== null ? Number(p.importeUsd) : 0), 0)
+              c.pagos
+                .filter((p) => !p.devuelto)
+                .reduce((sum, p) => {
+                  const v = moneda === "EUR" ? p.importeEur : p.importeUsd;
+                  return sum + (v !== null ? Number(v) : 0);
+                }, 0)
           );
           const pct = totalFactura > 0 ? Math.min(Math.round((recibido / totalFactura) * 100), 100) : 0;
           const Envoltorio = puedeVerDetalle ? Link : "div";
@@ -97,8 +111,8 @@ export default async function ContenedoresPage() {
                   />
                 </div>
                 <div className="flex justify-between font-mono text-[11.5px] text-steel">
-                  <span>{formatUsd(recibido)} recibidos ({pct}%)</span>
-                  <span>Total: {formatUsd(totalFactura)}</span>
+                  <span>{formatear(recibido)} recibidos ({pct}%)</span>
+                  <span>Total: {formatear(totalFactura)}</span>
                 </div>
               </Envoltorio>
               {puedeGestionar && (
